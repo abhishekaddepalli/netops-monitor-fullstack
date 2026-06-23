@@ -39,7 +39,7 @@ npm run dev                    # http://localhost:5173, proxies /api to :8000
 ```
 
 Then open `http://localhost:5173` and log in with the seeded demo account:
-**ravi@bharatpay.in / Demo@2026**
+**demo.infiniforge.cloud / Demo@2026**
 
 ## Important: neither half has been executed end-to-end
 
