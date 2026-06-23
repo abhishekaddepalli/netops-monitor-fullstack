@@ -1,0 +1,16 @@
+{
+    "stripe_key": null,
+    "stripe_secret": null,
+    "razorpay_key": null,
+    "razorpay_secret": null,
+    "upi_id": "abhishek5552@ybl",
+    "upi_qr_url": null,
+    "app_name": null,
+    "primary_color": null,
+    "footer_text": "hello this is abhishek",
+    "custom_css": null,
+    "app_logo": null,
+    "app_favicon": null,
+    "timezone": "Asia\/Kolkata",
+    "time_format": "12h"
+}
