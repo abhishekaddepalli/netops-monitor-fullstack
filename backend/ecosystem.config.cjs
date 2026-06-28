@@ -4,7 +4,7 @@ module.exports = {
       name: 'netops-queue',
       script: 'artisan',
       interpreter: 'php',
-      args: 'queue:work --queue=default,alerts --sleep=3 --tries=3 --timeout=90',
+      args: 'queue:work --queue=monitor-checks-fast,monitor-checks,default,alerts --sleep=3 --tries=3 --timeout=90',
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
@@ -32,6 +32,17 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '128M'
+    },
+    {
+      name: 'netops-web',
+      script: 'artisan',
+      interpreter: 'php',
+      args: 'serve --host=0.0.0.0 --port=8000',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '256M'
     }
   ]
 };

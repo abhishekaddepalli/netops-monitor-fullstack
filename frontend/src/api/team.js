@@ -5,6 +5,8 @@ export const teamApi = {
   invite: (payload) => apiClient.post('/v1/team/invite', payload),
   updateRole: (userId, role) => apiClient.patch(`/v1/team/members/${userId}/role`, { role }),
   remove: (userId) => apiClient.delete(`/v1/team/members/${userId}`),
+  update: (userId, payload) => apiClient.patch(`/v1/team/members/${userId}`, payload),
+  updatePassword: (userId, password) => apiClient.patch(`/v1/team/members/${userId}/password`, { password }),
   teams: () => apiClient.get('/v1/teams'),
   createTeam: (payload) => apiClient.post('/v1/teams', payload),
 };

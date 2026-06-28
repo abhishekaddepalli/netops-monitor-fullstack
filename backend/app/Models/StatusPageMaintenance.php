@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class StatusPageMaintenance extends Model
 {
+    protected $table = 'status_page_maintenance';
+
     protected $fillable = [
         'status_page_id', 'title', 'description', 'starts_at', 'ends_at', 'affected_component_ids',
     ];

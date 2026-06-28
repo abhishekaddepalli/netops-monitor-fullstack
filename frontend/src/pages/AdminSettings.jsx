@@ -13,6 +13,10 @@ export default function AdminSettings() {
     custom_css: '',
     timezone: 'UTC',
     time_format: '24h',
+    company_name: '',
+    company_address: '',
+    company_gst: '',
+    invoice_prefix: 'INV-',
   });
   
   const [logoFile, setLogoFile] = useState(null);
@@ -37,6 +41,10 @@ export default function AdminSettings() {
       fd.append('custom_css', settings.custom_css || '');
       fd.append('timezone', settings.timezone || 'UTC');
       fd.append('time_format', settings.time_format || '24h');
+      fd.append('company_name', settings.company_name || '');
+      fd.append('company_address', settings.company_address || '');
+      fd.append('company_gst', settings.company_gst || '');
+      fd.append('invoice_prefix', settings.invoice_prefix || 'INV-');
       
       if (logoFile) {
         fd.append('app_logo', logoFile);
@@ -226,6 +234,142 @@ export default function AdminSettings() {
           </form>
         </div>
       </div>
+
+      <div className="panel" style={{ maxWidth: 800, marginTop: 24 }}>
+        <div className="panel-head">
+          <div className="panel-title">Company & Billing Info</div>
+        </div>
+        <div className="panel-body">
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="form-group">
+              <label className="form-label">Company Name</label>
+              <input
+                className="form-input"
+                placeholder="Infiniforge Inc."
+                value={settings.company_name || ''}
+                onChange={(e) => setSettings({ ...settings, company_name: e.target.value })}
+              />
+            </div>
+            
+            <div className="form-group">
+              <label className="form-label">Company Address</label>
+              <textarea
+                className="form-input"
+                placeholder="123 Tech Street..."
+                value={settings.company_address || ''}
+                onChange={(e) => setSettings({ ...settings, company_address: e.target.value })}
+              />
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">GST / Tax ID</label>
+                <input
+                  className="form-input"
+                  placeholder="22AAAAA0000A1Z5"
+                  value={settings.company_gst || ''}
+                  onChange={(e) => setSettings({ ...settings, company_gst: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Invoice Prefix</label>
+                <input
+                  className="form-input"
+                  placeholder="INV-"
+                  value={settings.invoice_prefix || 'INV-'}
+                  onChange={(e) => setSettings({ ...settings, invoice_prefix: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+              <button className="btn btn-primary" type="submit" disabled={saving}>
+                <Settings size={16} style={{ marginRight: 6 }} />
+                {saving ? 'Saving...' : 'Save Company Info'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div className="panel" style={{ maxWidth: 800, marginTop: 24 }}>
+        <div className="panel-head">
+          <div className="panel-title">Super Admin Profile</div>
+          <div className="panel-sub">Change your personal admin credentials</div>
+        </div>
+        <div className="panel-body">
+          <SuperAdminProfileForm />
+        </div>
+      </div>
+
     </>
+  );
+}
+
+function SuperAdminProfileForm() {
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    // Fetch current user from auth context or api
+    apiClient.get('/v1/auth/me').then(({ data }) => {
+      setName(data.user?.name || '');
+      setEmail(data.user?.email || '');
+    }).catch(() => {});
+  }, []);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (password && password !== passwordConfirm) {
+      return toast.error("Passwords do not match");
+    }
+    setSubmitting(true);
+    try {
+      const payload = { name, email };
+      if (password) {
+        payload.password = password;
+        payload.password_confirmation = passwordConfirm;
+      }
+      await apiClient.patch('/v1/auth/profile', payload);
+      toast.success('Profile updated successfully.');
+      setPassword('');
+      setPasswordConfirm('');
+    } catch (error) {
+      toast.error(apiErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="form-group">
+        <label className="form-label">Name</label>
+        <input className="form-input" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div className="form-group">
+        <label className="form-label">Email</label>
+        <input type="email" className="form-input" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">New Password (optional)</label>
+          <input type="password" className="form-input" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Confirm Password</label>
+          <input type="password" className="form-input" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+        <button className="btn btn-primary" type="submit" disabled={submitting}>
+          {submitting ? 'Updating...' : 'Update Profile'}
+        </button>
+      </div>
+    </form>
   );
 }

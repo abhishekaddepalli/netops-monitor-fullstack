@@ -27,7 +27,8 @@ class SettingsController extends Controller
 
         $data = $request->only([
             'stripe_key', 'stripe_secret', 'razorpay_key', 'razorpay_secret', 'upi_id', 'upi_qr_url', 'log_retention_days',
-            'app_name', 'primary_color', 'custom_css', 'timezone', 'time_format'
+            'app_name', 'primary_color', 'custom_css', 'timezone', 'time_format',
+            'company_name', 'company_address', 'company_gst', 'invoice_prefix'
         ]);
 
         if ($request->hasFile('app_logo')) {
@@ -67,6 +68,8 @@ class SettingsController extends Controller
             'custom_css' => $settings['custom_css'] ?? null,
             'timezone' => $settings['timezone'] ?? 'UTC',
             'time_format' => $settings['time_format'] ?? '24h',
+            'upi_id' => $settings['upi_id'] ?? null,
+            'upi_qr_url' => $settings['upi_qr_url'] ?? null,
         ]);
     }
 }

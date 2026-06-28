@@ -66,16 +66,16 @@ export default function AdminNotificationTemplates() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24, alignItems: 'start' }}>
-        <div className="panel">
-          <div className="panel-head" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
-            <div className="tabs" style={{ gap: 20 }}>
+      <div className="row-2" style={{ gap: 24, alignItems: 'start' }}>
+        <div className="panel" style={{ flex: 1, minHeight: 600 }}>
+          <div className="panel-head" style={{ paddingBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 10, borderBottom: '1px solid var(--navy-border)', paddingBottom: 20, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
               {CHANNELS.map(ch => (
                 <button 
                   key={ch}
-                  className={`tab ${activeChannel === ch ? 'active' : ''}`}
+                  className={`btn btn-sm ${activeChannel === ch ? 'btn-primary' : 'btn-ghost'}`}
                   onClick={() => setActiveChannel(ch)}
-                  style={{ textTransform: 'capitalize', paddingBottom: 15 }}
+                  style={{ textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   {ch}
                 </button>
@@ -84,7 +84,7 @@ export default function AdminNotificationTemplates() {
           </div>
           
           <div className="panel-body">
-            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
               <button 
                 className={`btn btn-sm ${activeEvent === 'down' ? 'btn-primary' : 'btn-ghost'}`}
                 onClick={() => setActiveEvent('down')}
@@ -96,6 +96,30 @@ export default function AdminNotificationTemplates() {
                 onClick={() => setActiveEvent('up')}
               >
                 Incident Resolved
+              </button>
+              <button 
+                className={`btn btn-sm ${activeEvent === 'login_alert' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setActiveEvent('login_alert')}
+              >
+                Login Alert
+              </button>
+              <button 
+                className={`btn btn-sm ${activeEvent === 'team_invite' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setActiveEvent('team_invite')}
+              >
+                Team Invite
+              </button>
+              <button 
+                className={`btn btn-sm ${activeEvent === 'weekly_report' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setActiveEvent('weekly_report')}
+              >
+                Weekly Report
+              </button>
+              <button 
+                className={`btn btn-sm ${activeEvent === 'monthly_report' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setActiveEvent('monthly_report')}
+              >
+                Monthly Report
               </button>
             </div>
 
@@ -150,28 +174,50 @@ export default function AdminNotificationTemplates() {
           <div className="panel-body" style={{ fontSize: 13, color: 'var(--text-dim)' }}>
             <p style={{ marginBottom: 15 }}>Use the following placeholders in your templates. They will be dynamically replaced when an alert is sent.</p>
             
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <code style={{ color: 'var(--text-main)', background: 'var(--bg-lighter)', padding: '2px 6px', borderRadius: 4 }}>{'{{monitor.name}}'}</code>
-                  <div style={{ marginTop: 2 }}>Monitor name</div>
-                </div>
-                <div>
-                  <code style={{ color: 'var(--text-main)', background: 'var(--bg-lighter)', padding: '2px 6px', borderRadius: 4 }}>{'{{monitor.type}}'}</code>
-                  <div style={{ marginTop: 2 }}>Monitor type (PING, HTTP)</div>
-                </div>
-                <div>
-                  <code style={{ color: 'var(--text-main)', background: 'var(--bg-lighter)', padding: '2px 6px', borderRadius: 4 }}>{'{{monitor.target}}'}</code>
-                  <div style={{ marginTop: 2 }}>Target URL/IP</div>
-                </div>
-                <div>
-                  <code style={{ color: 'var(--text-main)', background: 'var(--bg-lighter)', padding: '2px 6px', borderRadius: 4 }}>{'{{incident.error}}'}</code>
-                  <div style={{ marginTop: 2 }}>Error details</div>
-                </div>
-                <div style={{ gridColumn: '1 / -1', background: 'var(--navy-800)', padding: 10, borderRadius: 6, border: '1px dashed var(--navy-border)' }}>
-                  <code style={{ color: '#60a5fa', background: 'rgba(96, 165, 250, 0.1)', padding: '2px 6px', borderRadius: 4, fontWeight: 'bold' }}>{'{{monitor.details}}'}</code>
-                  <div style={{ marginTop: 4, color: 'var(--text-main)' }}><strong>(Recommended)</strong> Automatically injects a formatted list of parameters specific to the monitor type (e.g., Ping response times, SSL days remaining, Port numbers, etc).</div>
-                </div>
+            {(activeEvent === 'down' || activeEvent === 'up') && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                <div><code>{`{{monitor.name}}`}</code><br/>Monitor Name</div>
+                <div><code>{`{{monitor.type}}`}</code><br/>Type (HTTP, PING)</div>
+                <div><code>{`{{monitor.target}}`}</code><br/>URL or IP</div>
+                <div><code>{`{{monitor.details}}`}</code><br/>Detailed properties table</div>
+                <div><code>{`{{incident.error}}`}</code><br/>Root cause message</div>
+                <div><code>{`{{incident.duration}}`}</code><br/>Downtime length</div>
+                <div><code>{`{{incident.started_at}}`}</code><br/>Start time</div>
+                <div><code>{`{{time}}`}</code><br/>Current time</div>
+                <div><code>{`{{date}}`}</code><br/>Current date</div>
               </div>
+            )}
+            
+            {activeEvent === 'login_alert' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                <div><code>{`{{user.name}}`}</code><br/>User Name</div>
+                <div><code>{`{{user.email}}`}</code><br/>User Email</div>
+                <div><code>{`{{login.ip}}`}</code><br/>IP Address</div>
+                <div><code>{`{{login.device}}`}</code><br/>Browser/Device</div>
+                <div><code>{`{{login.time}}`}</code><br/>Login Timestamp</div>
+              </div>
+            )}
+
+            {activeEvent === 'team_invite' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                <div><code>{`{{user.name}}`}</code><br/>Invitee Name</div>
+                <div><code>{`{{user.email}}`}</code><br/>Invitee Email</div>
+                <div><code>{`{{org.name}}`}</code><br/>Organization Name</div>
+                <div><code>{`{{invite.password}}`}</code><br/>Temporary Password</div>
+                <div><code>{`{{invite.link}}`}</code><br/>Login Link</div>
+              </div>
+            )}
+
+            {(activeEvent === 'weekly_report' || activeEvent === 'monthly_report') && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                <div><code>{`{{org.name}}`}</code><br/>Organization Name</div>
+                <div><code>{`{{report.period}}`}</code><br/>Period (Weekly/Monthly)</div>
+                <div><code>{`{{report.uptime_percentage}}`}</code><br/>Overall Uptime %</div>
+                <div><code>{`{{report.total_incidents}}`}</code><br/>Total Incidents</div>
+                <div><code>{`{{report.total_downtime}}`}</code><br/>Total Downtime Mins</div>
+                <div><code>{`{{report.details}}`}</code><br/>Monitors Table</div>
+              </div>
+            )}
 
             <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
               <strong>Channel Formatting Notes:</strong>

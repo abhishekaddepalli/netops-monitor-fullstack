@@ -27,6 +27,8 @@ export default function PublicStatusPage() {
     } catch (err) {
       if (err.response?.status === 401 && err.response.data?.password_protected) {
         setPasswordRequired(true);
+      } else if (err.response?.data?.error) {
+        setError('Error: ' + err.response.data.error);
       } else {
         setError('This status page could not be found.');
       }

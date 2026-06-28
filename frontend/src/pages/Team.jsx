@@ -20,6 +20,8 @@ export default function Team() {
   const { isOrgAdmin, user } = useAuth();
   const [members, setMembers] = useState(null);
   const [showInvite, setShowInvite] = useState(false);
+  const [editMember, setEditMember] = useState(null);
+  const [passwordMember, setPasswordMember] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -88,10 +90,14 @@ export default function Team() {
                       <span className="tag">{ROLES.find((r) => r.key === m.role)?.label || m.role}</span>
                     )}
                   </td>
-                  <td style={{ color: 'var(--white-60)' }}>{timeAgo(m.last_login_at)}</td>
+                  <td style={{ color: 'var(--white-60)' }}>{m.last_login_at ? timeAgo(m.last_login_at) : 'Never'}</td>
                   <td>
                     {isOrgAdmin && m.email !== user?.email && (
-                      <button className="icon-btn-sm" onClick={() => handleRemove(m)} title="Remove"><Trash2 /></button>
+                      <div className="flex" style={{ gap: 8, justifyContent: 'flex-end' }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setEditMember(m)}>Edit</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setPasswordMember(m)}>Password</button>
+                        <button className="icon-btn-sm" onClick={() => handleRemove(m)} title="Remove"><Trash2 /></button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -102,6 +108,9 @@ export default function Team() {
       </div>
 
       {showInvite && <InviteModal onClose={() => setShowInvite(false)} onInvited={() => { setShowInvite(false); load(); }} />}
+      {editMember && <EditMemberModal member={editMember} onClose={() => setEditMember(null)} onUpdated={() => { setEditMember(null); load(); }} />}
+      {passwordMember && <ChangePasswordModal member={passwordMember} onClose={() => setPasswordMember(null)} onUpdated={() => setPasswordMember(null)} />}
+
     </>
   );
 }
@@ -131,7 +140,7 @@ function InviteModal({ onClose, onInvited }) {
     <Modal title="Invite Team Member" onClose={onClose} footer={
       <>
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>{submitting ? 'Inviting…' : 'Send invite'}</button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>{submitting ? 'Inviting…' : 'Send invite'}</button>
       </>
     }>
       <form onSubmit={handleSubmit}>
@@ -148,6 +157,84 @@ function InviteModal({ onClose, onInvited }) {
           <select id="inv-role" className="form-select" value={role} onChange={(e) => setRole(e.target.value)}>
             {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
           </select>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EditMemberModal({ member, onClose, onUpdated }) {
+  const toast = useToast();
+  const [name, setName] = useState(member.name);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await teamApi.update(member.id, { name });
+      toast.success(`${name}'s details updated.`);
+      onUpdated();
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Could not update member.'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Edit Team Member" onClose={onClose} footer={
+      <>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>{submitting ? 'Saving…' : 'Save Changes'}</button>
+      </>
+    }>
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label className="form-label">Email</label>
+          <input className="form-input" value={member.email} disabled />
+          <div className="form-help">Email cannot be changed directly.</div>
+        </div>
+        <div className="form-group">
+          <label className="form-label" htmlFor="edit-name">Name</label>
+          <input id="edit-name" className="form-input" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ChangePasswordModal({ member, onClose, onUpdated }) {
+  const toast = useToast();
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await teamApi.updatePassword(member.id, password);
+      toast.success(`Password for ${member.name} reset successfully.`);
+      onUpdated();
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Could not change password.'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title={`Change Password for ${member.name}`} onClose={onClose} footer={
+      <>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting || password.length < 8}>{submitting ? 'Updating…' : 'Update Password'}</button>
+      </>
+    }>
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label className="form-label" htmlFor="change-pass">New Password</label>
+          <input id="change-pass" type="password" className="form-input" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoFocus />
+          <div className="form-help">Must be at least 8 characters long.</div>
         </div>
       </form>
     </Modal>

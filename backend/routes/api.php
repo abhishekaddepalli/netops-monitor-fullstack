@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\AlertChannelController;
 use App\Http\Controllers\Api\ApiKeyController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DiagnosticToolController;
+use App\Http\Controllers\Api\DiscoveryJobController;
 use App\Http\Controllers\Api\HeartbeatController;
 use App\Http\Controllers\Api\IncidentController;
 use App\Http\Controllers\Api\MonitorController;
@@ -59,8 +61,36 @@ Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
 
     Route::middleware('org.scope')->group(function () {
         Route::patch('/organization', [\App\Http\Controllers\Api\OrganizationController::class, 'update'])->middleware('org.role:org_admin');
-        Route::post('/billing/subscribe', [\App\Http\Controllers\Api\BillingController::class, 'subscribe'])->middleware('org.role:org_admin');
+        Route::post('/billing/subscribe', [\App\Http\Controllers\Api\BillingController::class, 'subscribe']);
+        Route::post('/billing/cancel-draft', [\App\Http\Controllers\Api\BillingController::class, 'cancelDraft'])->middleware('org.role:org_admin');
+        Route::post('/billing/razorpay/verify', [\App\Http\Controllers\Api\BillingController::class, 'verifyRazorpay'])->middleware('org.role:org_admin');
         Route::get('/billing/current', [\App\Http\Controllers\Api\BillingController::class, 'current'])->middleware('org.role:org_admin');
+
+        // ── Diagnostic Tools ──────────────────────────────────────────
+        Route::post('/tools/ping', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'ping']);
+        Route::post('/tools/dns', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'dns']);
+        Route::post('/tools/port', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'port']);
+        Route::post('/tools/ssl', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'ssl']);
+        Route::post('/tools/whois', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'whois']);
+        Route::post('/tools/traceroute', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'traceroute']);
+        Route::post('/tools/ping', [DiagnosticToolController::class, 'ping']);
+        Route::post('/tools/dns', [DiagnosticToolController::class, 'dns']);
+        Route::post('/tools/port', [DiagnosticToolController::class, 'port']);
+        Route::post('/tools/ssl', [DiagnosticToolController::class, 'ssl']);
+        Route::post('/tools/whois', [DiagnosticToolController::class, 'whois']);
+        Route::post('/tools/traceroute', [DiagnosticToolController::class, 'traceroute']);
+        Route::post('/tools/ipinfo', [DiagnosticToolController::class, 'ipinfo']);
+        Route::post('/tools/headers', [DiagnosticToolController::class, 'headers']);
+        Route::post('/tools/blacklist', [DiagnosticToolController::class, 'blacklist']);
+        Route::post('/tools/ipreputation', [DiagnosticToolController::class, 'ipreputation']);
+        Route::post('/tools/snmp/test', [DiagnosticToolController::class, 'snmpTest']);
+        Route::post('/tools/snmp-routes', [DiagnosticToolController::class, 'snmpRoutes']);
+        // Network Discovery
+        Route::post('/tools/network-discovery', [DiagnosticToolController::class, 'networkDiscovery']);
+        Route::get('/discovery-jobs', [DiscoveryJobController::class, 'index']);
+        Route::post('/discovery-jobs', [DiscoveryJobController::class, 'store']);
+        Route::delete('/discovery-jobs/{id}', [DiscoveryJobController::class, 'destroy']);
+        Route::post('/discovery-jobs/{id}/toggle', [DiscoveryJobController::class, 'toggle']);
 
         // ── Dashboard ──────────────────────────────────────────────
         Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
@@ -79,6 +109,7 @@ Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
         Route::post('/monitors/{monitor}/resume', [MonitorController::class, 'resume'])->middleware('org.role:org_admin,operator');
         Route::post('/monitors/{monitor}/test', [MonitorController::class, 'test'])->middleware('org.role:org_admin,operator');
         Route::get('/monitors/{monitor}/checks', [MonitorController::class, 'checks']);
+        Route::get('/monitors/{monitor}/server-metrics', [MonitorController::class, 'serverMetrics']);
         Route::get('/monitors/{monitor}/chart', [MonitorController::class, 'chartData']);
 
         // ── Incidents ──────────────────────────────────────────────
@@ -105,6 +136,8 @@ Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
         Route::get('/team/members', [TeamController::class, 'members']);
         Route::post('/team/invite', [TeamController::class, 'inviteMember'])->middleware('org.role:org_admin');
         Route::patch('/team/members/{user}/role', [TeamController::class, 'updateMemberRole'])->middleware('org.role:org_admin');
+        Route::patch('/team/members/{user}', [TeamController::class, 'update'])->middleware('org.role:org_admin');
+        Route::patch('/team/members/{user}/password', [TeamController::class, 'updatePassword'])->middleware('org.role:org_admin');
         Route::delete('/team/members/{user}', [TeamController::class, 'removeMember'])->middleware('org.role:org_admin');
         Route::get('/teams', [TeamController::class, 'index']);
         Route::post('/teams', [TeamController::class, 'store'])->middleware('org.role:org_admin');
@@ -139,16 +172,19 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'org.role:super_admin'])-
 
     Route::apiResource('plans', \App\Http\Controllers\Api\Admin\PlanController::class)->except(['show']);
 
+
     Route::get('/monitoring-nodes', [MonitoringNodeController::class, 'index']);
     Route::post('/monitoring-nodes', [MonitoringNodeController::class, 'store']);
     Route::patch('/monitoring-nodes/{monitoring_node}', [MonitoringNodeController::class, 'update']);
 
     // Settings and Status Pages
-    Route::get('/status-pages/{slug}', [\App\Http\Controllers\Api\PublicStatusPageController::class, 'show']);
     Route::get('/settings', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'show']);
     Route::patch('/settings', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'update']);
 
     Route::get('/invoices', [\App\Http\Controllers\Api\Admin\InvoiceController::class, 'index']);
+    Route::get('/invoices/{id}', [\App\Http\Controllers\Api\Admin\InvoiceController::class, 'show']);
+    Route::post('/invoices/{id}/approve', [\App\Http\Controllers\Api\Admin\InvoiceController::class, 'approve']);
+    Route::post('/invoices/{id}/deny', [\App\Http\Controllers\Api\Admin\InvoiceController::class, 'deny']);
     Route::get('/logs', [\App\Http\Controllers\Api\Admin\AuditLogController::class, 'index']);
     Route::delete('/logs', [\App\Http\Controllers\Api\Admin\AuditLogController::class, 'destroy']);
     Route::get('/logs/export', [\App\Http\Controllers\Api\Admin\AuditLogController::class, 'export']);
@@ -161,13 +197,11 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'org.role:super_admin'])-
     Route::post('alert-channels/{alert_channel}/test', [\App\Http\Controllers\Api\Admin\AlertChannelController::class, 'test']);
     
     Route::apiResource('notification-templates', \App\Http\Controllers\Api\Admin\NotificationTemplateController::class)->only(['index', 'show', 'update']);
-});
+    
+    // New simplified Radius endpoints
+    Route::post('/radius/provision', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'provision']);
+    Route::post('/radius/suspend', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'suspend']);
 
-/*
-|--------------------------------------------------------------------------
-| Radius Integration (External Webhook/API endpoints)
-|--------------------------------------------------------------------------
-*/
     Route::middleware([\App\Http\Middleware\RadiusAuthMiddleware::class])->prefix('radius')->group(function () {
         Route::post('/organizations', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'createOrganization']);
         Route::post('/organizations/{organization}/suspend', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'suspendOrganization']);
@@ -177,3 +211,4 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'org.role:super_admin'])-
         Route::delete('/organizations/{organization}', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'destroyOrganization']);
         Route::post('/subscriptions', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'subscribe']);
     });
+});

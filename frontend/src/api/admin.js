@@ -28,6 +28,14 @@ export const adminApi = {
   updatePlan: (id, data) => apiClient.patch(`/v1/admin/plans/${id}`, data),
   deletePlan: (id) => apiClient.delete(`/v1/admin/plans/${id}`),
 
+  // Billing Plans
+  billingPlans: {
+    list: () => apiClient.get('/v1/admin/billing-plans'),
+    create: (data) => apiClient.post('/v1/admin/billing-plans', data),
+    update: (id, data) => apiClient.patch(`/v1/admin/billing-plans/${id}`, data),
+    delete: (id) => apiClient.delete(`/v1/admin/billing-plans/${id}`),
+  },
+
   // Monitoring Nodes
   listNodes: () => apiClient.get('/v1/admin/monitoring-nodes'),
   createNode: (data) => apiClient.post('/v1/admin/monitoring-nodes', data),
@@ -44,6 +52,10 @@ export const adminApi = {
 
   // Billing & Logs
   listInvoices: (params) => apiClient.get('/v1/admin/invoices', { params }),
+  approveInvoice: (id) => apiClient.post(`/v1/admin/invoices/${id}/approve`),
+  denyInvoice: (id) => apiClient.post(`/v1/admin/invoices/${id}/deny`),
+  approveInvoice: (id) => apiClient.post(`/v1/admin/invoices/${id}/approve`),
+  denyInvoice: (id) => apiClient.post(`/v1/admin/invoices/${id}/deny`),
   listAuditLogs: (params) => apiClient.get('/v1/admin/logs', { params }),
   deleteAuditLogs: (params) => apiClient.delete('/v1/admin/logs', { params }),
   exportAuditLogs: async (params) => {

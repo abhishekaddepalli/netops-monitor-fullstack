@@ -12,6 +12,9 @@ import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Monitors from './pages/Monitors';
 import MonitorDetail from './pages/MonitorDetail';
+import NetworkTools from './pages/NetworkTools';
+import InvoicePrint from './pages/InvoicePrint';
+import ErrorBoundary from './components/ErrorBoundary';
 import Incidents from './pages/Incidents';
 import StatusPages from './pages/StatusPages';
 import PublicStatusPage from './pages/PublicStatusPage';
@@ -64,138 +67,141 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <ToastProvider>
-            <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <ErrorBoundary>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/" element={<Landing />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
 
-            {/* Public status page — no auth, no app shell */}
-            <Route path="/status/:slug" element={<PublicStatusPage />} />
+                {/* Public status page — no auth, no app shell */}
+                <Route path="/status/:slug" element={<PublicStatusPage />} />
 
-            {/* Authenticated app shell */}
-            <Route
-              element={
-                <ProtectedRoute>
-                  <AppLayoutWithTitle />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/monitors" element={<Monitors />} />
-              <Route path="/monitors/:id" element={<MonitorDetail />} />
-              <Route path="/incidents" element={<Incidents />} />
-              <Route path="/status-pages" element={<StatusPages />} />
-              <Route path="/admin/alert-integrations" element={<AdminAlertIntegrations />} />
-              <Route path="/admin/notification-templates" element={<AdminNotificationTemplates />} />
-              <Route path="/admin/alert-channels" element={<AdminGlobalAlertChannels />} />
-              <Route path="/team" element={<Team />} />
-              <Route path="/alert-channels" element={<AlertChannels />} />
-              <Route path="/api-docs" element={<ApiDocs />} />
-              <Route path="/billing" element={<Billing />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route
-                path="/admin"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminDashboard />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/organizations"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminOrganizations />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/plans"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminPlans />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/nodes"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminNodes />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/payment-gateways"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminPaymentGateways />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/invoices"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminInvoices />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/logs"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminLogs />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/alert-integrations"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminAlertIntegrations />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/alert-channels"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminGlobalAlertChannels />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/api-docs"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminApiDocs />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/settings"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminSettings />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/admin/server-health"
-                element={
-                  <RequireRole role="super_admin">
-                    <AdminServerHealth />
-                  </RequireRole>
-                }
-              />
-            </Route>
+                {/* Authenticated app shell */}
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <AppLayoutWithTitle />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/monitors" element={<Monitors />} />
+                  <Route path="/monitors/:id" element={<MonitorDetail />} />
+                  <Route path="/tools" element={<NetworkTools />} />
+                  <Route path="/incidents" element={<Incidents />} />
+                  <Route path="/status-pages" element={<StatusPages />} />
+                  <Route path="/admin/alert-integrations" element={<AdminAlertIntegrations />} />
+                  <Route path="/admin/notification-templates" element={<AdminNotificationTemplates />} />
+                  <Route path="/admin/alert-channels" element={<AdminGlobalAlertChannels />} />
+                  <Route path="/team" element={<Team />} />
+                  <Route path="/alert-channels" element={<AlertChannels />} />
+                  <Route path="/api-docs" element={<ApiDocs />} />
+                  <Route path="/billing" element={<Billing />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route
+                    path="/admin"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminDashboard />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/organizations"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminOrganizations />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/plans"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminPlans />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/nodes"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminNodes />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/payment-gateways"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminPaymentGateways />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/invoices"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminInvoices />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/logs"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminLogs />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/alert-integrations"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminAlertIntegrations />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/alert-channels"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminGlobalAlertChannels />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/api-docs"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminApiDocs />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/settings"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminSettings />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/server-health"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminServerHealth />
+                      </RequireRole>
+                    }
+                  />
+                </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </ToastProvider>
-      </AuthProvider>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </ErrorBoundary>
+          </ToastProvider>
+        </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
   );

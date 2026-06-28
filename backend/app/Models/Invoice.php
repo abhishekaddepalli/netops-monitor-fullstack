@@ -9,7 +9,7 @@ class Invoice extends Model
 {
     protected $fillable = [
         'organization_id', 'subscription_id', 'invoice_number', 'amount', 'currency',
-        'status', 'provider_invoice_id', 'pdf_path', 'due_at', 'paid_at',
+        'status', 'provider_invoice_id', 'receipt_path', 'pdf_path', 'due_at', 'paid_at',
     ];
 
     protected $casts = [

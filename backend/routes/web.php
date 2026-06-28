@@ -24,7 +24,11 @@ Route::prefix('setup')->group(function () {
 Route::fallback(function () {
     $indexPath = public_path('index.html');
     if (file_exists($indexPath)) {
-        return file_get_contents($indexPath);
+        return response(file_get_contents($indexPath))
+            ->header('Content-Type', 'text/html')
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
     }
     
     return response()->json([

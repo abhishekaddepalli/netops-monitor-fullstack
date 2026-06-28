@@ -1,16 +1,38 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Filter, Pause, Play, Trash2, Activity, Download, Upload, FileDown } from 'lucide-react';
+import { Plus, Filter, Pause, Play, Trash2, Activity, Download, Upload, FileDown, Search } from 'lucide-react';
 import { monitorsApi } from '../api/monitors';
 import { apiErrorMessage } from '../api/client';
 import StatusPill from '../components/ui/StatusPill';
 import EmptyState from '../components/ui/EmptyState';
 import Skeleton from '../components/ui/Skeleton';
 import CreateMonitorModal from '../components/monitors/CreateMonitorModal';
+import NetworkDiscoveryModal from '../components/monitors/NetworkDiscoveryModal';
 import { MonitorTypeIcon } from '../utils/monitorIcons';
 import { MONITOR_TYPE_LABELS, formatMs, formatUptime } from '../utils/format';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+
+function MiniUptimeGraph({ checks }) {
+  if (!checks || checks.length === 0) return <span style={{ color: 'var(--white-40)', fontSize: 12 }}>No data</span>;
+  return (
+    <div style={{ display: 'flex', gap: 2, alignItems: 'center', height: 20, width: 100 }}>
+      {checks.map((c, i) => (
+        <div 
+          key={i} 
+          title={`${c.result} - ${c.response_time_ms}ms`}
+          style={{ 
+            flex: 1, 
+            backgroundColor: c.result === 'up' ? 'var(--success-color, #10b981)' : 'var(--danger-color, #ef4444)',
+            height: '100%',
+            borderRadius: 2,
+            opacity: c.result === 'up' ? 0.8 : 1
+          }} 
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function Monitors() {
   const navigate = useNavigate();
@@ -21,6 +43,7 @@ export default function Monitors() {
   const [typeFilter, setTypeFilter] = useState('');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [showCreate, setShowCreate] = useState(false);
+  const [showDiscovery, setShowDiscovery] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -111,6 +134,12 @@ export default function Monitors() {
               <input type="file" accept=".csv" onChange={handleImport} style={{ display: 'none' }} />
             </label>
           )}
+          {isOperatorOrAbove && (
+            <button className="btn btn-secondary" onClick={() => setShowDiscovery(true)}>
+              <Search size={15} />
+              Discovery
+            </button>
+          )}
           <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
             <Plus size={15} />New Monitor
           </button>
@@ -158,13 +187,14 @@ export default function Monitors() {
           <table className="data-table">
             <thead>
               <tr>
-                <th style={{ width: '32%' }}>Monitor</th>
+                <th style={{ width: '28%' }}>Monitor</th>
                 <th>Status</th>
+                <th>History</th>
                 <th>Uptime</th>
                 <th>Type</th>
                 <th>Resp.</th>
                 <th>Interval</th>
-                <th></th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -180,19 +210,26 @@ export default function Monitors() {
                     </div>
                   </td>
                   <td><StatusPill status={m.status} /></td>
+                  <td><MiniUptimeGraph checks={m.recent_checks} /></td>
                   <td>{m.uptime_pct != null ? formatUptime(m.uptime_pct) : '—'}</td>
                   <td><span className="tag">{MONITOR_TYPE_LABELS[m.type]}</span></td>
                   <td className="mon-metric">{formatMs(m.last_response_time_ms)}</td>
                   <td style={{ color: 'var(--white-60)' }}>{m.check_interval_seconds}s</td>
-                  <td>
+                  <td style={{ textAlign: 'right' }}>
                     {isOperatorOrAbove && (
-                      <div className="row-actions">
+                      <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
+                        <button className="icon-btn-sm" onClick={(e) => { e.stopPropagation(); navigate(`/monitors/${m.id}`); }} title="View / Test">
+                          <Activity size={14} />
+                        </button>
+                        <button className="icon-btn-sm" onClick={(e) => { e.stopPropagation(); navigate(`/monitors/${m.id}`); }} title="Edit">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                        </button>
                         <button className="icon-btn-sm" onClick={(e) => handlePauseToggle(e, m)} title={m.is_paused ? 'Resume' : 'Pause'}>
-                          {m.is_paused ? <Play /> : <Pause />}
+                          {m.is_paused ? <Play size={14} /> : <Pause size={14} />}
                         </button>
                         {isOrgAdmin && (
                           <button className="icon-btn-sm" onClick={(e) => handleDelete(e, m)} title="Delete">
-                            <Trash2 />
+                            <Trash2 size={14} />
                           </button>
                         )}
                       </div>
@@ -212,6 +249,17 @@ export default function Monitors() {
             setShowCreate(false);
             load();
             navigate(`/monitors/${monitor.id}`);
+          }}
+        />
+      )}
+
+      {showDiscovery && (
+        <NetworkDiscoveryModal
+          isOpen={showDiscovery}
+          onClose={() => setShowDiscovery(false)}
+          onAdded={() => {
+            setShowDiscovery(false);
+            load();
           }}
         />
       )}

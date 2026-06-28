@@ -34,6 +34,9 @@ export default function Settings() {
           </div>
           <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Row label="Name" value={organization?.name} />
+            <Row label="Billing Email" value={organization?.billing_email} />
+            <Row label="Phone" value={organization?.phone} />
+            <Row label="Address" value={organization?.address} />
             <Row label="Plan" value={organization?.plan} capitalize />
             <Row label="Monitor limit" value={organization?.monitor_limit} />
             <Row label="Team member limit" value={organization?.team_member_limit} />
@@ -150,7 +153,10 @@ function TwoFactorModal({ user, onClose }) {
 
 function EditOrganizationModal({ org, onClose }) {
   const toast = useToast();
-  const [name, setName] = useState(org.name);
+  const [name, setName] = useState(org.name || '');
+  const [billingEmail, setBillingEmail] = useState(org.billing_email || '');
+  const [phone, setPhone] = useState(org.phone || '');
+  const [address, setAddress] = useState(org.address || '');
   const [timezone, setTimezone] = useState(org.timezone || 'UTC');
   const [submitting, setSubmitting] = useState(false);
 
@@ -158,7 +164,9 @@ function EditOrganizationModal({ org, onClose }) {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await organizationsApi.update({ name, timezone });
+      await organizationsApi.update({ 
+        name, timezone, billing_email: billingEmail, phone, address 
+      });
       toast.success('Organization updated. Refresh to see changes.');
       onClose();
     } catch (error) {
@@ -179,6 +187,18 @@ function EditOrganizationModal({ org, onClose }) {
         <div className="form-group">
           <label className="form-label">Name</label>
           <input className="form-input" value={name} onChange={(e) => setName(e.target.value)} required />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Billing Email</label>
+          <input type="email" className="form-input" value={billingEmail} onChange={(e) => setBillingEmail(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Phone</label>
+          <input className="form-input" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Address</label>
+          <textarea className="form-input" value={address} onChange={(e) => setAddress(e.target.value)} />
         </div>
         <div className="form-group">
           <label className="form-label">Timezone</label>

@@ -22,6 +22,7 @@ class MonitorCheckerFactory
         'dns' => DnsChecker::class,
         'heartbeat' => HeartbeatChecker::class,
         'server_agent' => HeartbeatChecker::class,
+        'snmp' => SnmpChecker::class,
     ];
 
     public static function make(Monitor $monitor): MonitorCheckerInterface

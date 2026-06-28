@@ -1,8 +1,8 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Activity, AlertTriangle, Globe2,
-  Network, Users, Plug, Settings, LogOut, Code,
-  Building2, ListPlus, Server, CreditCard, Receipt, FileClock, Wallet, FileText, X, Sun, Moon
+  Network, Users, Plug, Settings, LogOut, Code, Terminal,
+  Building2, ListPlus, Server, CreditCard, Receipt, FileClock, Wallet, FileText, X, Sun, Moon, ServerCog
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/monitors', icon: Activity, label: 'Monitors' },
   { to: '/incidents', icon: AlertTriangle, label: 'Incidents' },
   { to: '/status-pages', icon: Globe2, label: 'Status Pages' },
+  { to: '/tools', icon: Terminal, label: 'Diagnostic Tools' },
 ];
 
 const ORG_ITEMS = [
@@ -24,6 +25,9 @@ const ORG_ITEMS = [
 export default function Sidebar({ activeIncidentCount = 0, isOpen, setIsOpen }) {
   const { user, role, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isAdminView = role === 'super_admin' && location.pathname.startsWith('/admin');
 
   const initials = (user?.name || '?')
     .split(' ')
@@ -54,90 +58,95 @@ export default function Sidebar({ activeIncidentCount = 0, isOpen, setIsOpen }) 
       </div>
 
       <div className="sidebar-scrollarea">
-        <div className="nav-section">
-          {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => (
-            <NavLink onClick={() => setIsOpen?.(false)}
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-            >
-              <Icon />
-              {label}
-              {label === 'Incidents' && activeIncidentCount > 0 && (
-                <span className="nav-badge">{activeIncidentCount}</span>
-              )}
-            </NavLink>
-          ))}
-        </div>
+        {!isAdminView ? (
+          <>
+            <div className="nav-section">
+              {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => (
+                <NavLink onClick={() => setIsOpen?.(false)}
+                  key={to}
+                  to={to}
+                  end={end}
+                  className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                >
+                  <Icon />
+                  {label}
+                  {label === 'Incidents' && activeIncidentCount > 0 && (
+                    <span className="nav-badge">{activeIncidentCount}</span>
+                  )}
+                </NavLink>
+              ))}
+            </div>
 
-        <div className="nav-section">
-          <div className="nav-label">Organization</div>
-          {ORG_ITEMS.map(({ to, icon: Icon, label }) => (
-            <NavLink onClick={() => setIsOpen?.(false)} key={to} to={to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-              <Icon />
-              {label}
+            <div className="nav-section">
+              <div className="nav-label">Organization</div>
+              {ORG_ITEMS.map(({ to, icon: Icon, label }) => (
+                <NavLink onClick={() => setIsOpen?.(false)} key={to} to={to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+                  <Icon />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="nav-section">
+            <div className="nav-label" style={{ marginBottom: 12 }}>Platform Super Admin</div>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} end>
+              <LayoutDashboard /> Dashboard
             </NavLink>
-          ))}
-          {role === 'super_admin' && (
-            <>
-              <div className="nav-label" style={{ marginTop: 20 }}>Super Admin</div>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} end>
-                <LayoutDashboard />
-                Dashboard
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/server-health" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <Activity />
-                Server Health
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/organizations" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <Building2 />
-                Organizations
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/plans" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <ListPlus />
-                Plans
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/nodes" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <Server />
-                Monitoring Nodes
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/payment-gateways" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <CreditCard />
-                Payment Gateways
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/alert-integrations" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <Plug />
-                Alert Integrations
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/notification-templates" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <FileText />
-                Notification Templates
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/alert-channels" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <AlertTriangle />
-                Global Alert Channels
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/invoices" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <Receipt />
-                Invoices
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/logs" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <FileClock />
-                Global Logs
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/api-docs" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <Code />
-                Radius API Docs
-              </NavLink>
-              <NavLink onClick={() => setIsOpen?.(false)} to="/admin/settings" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                <Settings />
-                Whitelabel Settings
-              </NavLink>
-            </>
-          )}
-        </div>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/server-health" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <ServerCog size={20} /> Server Health
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/organizations" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <Building2 size={20} /> Organizations
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/plans" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <ListPlus /> Plans
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/nodes" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <Server /> Monitoring Nodes
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/payment-gateways" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <CreditCard /> Payment Gateways
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/alert-integrations" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <Plug /> Alert Integrations
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/notification-templates" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <FileText /> Notification Templates
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/alert-channels" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <AlertTriangle /> Global Alert Channels
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/invoices" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <Receipt /> Invoices
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/logs" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <FileClock /> Global Logs
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/api-docs" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <Code /> Radius Integration
+            </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/settings" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <Settings /> Whitelabel Settings
+            </NavLink>
+          </div>
+        )}
       </div>
+
+      {role === 'super_admin' && (
+        <div style={{ padding: '0 24px 16px' }}>
+          <button 
+            className="btn btn-ghost" 
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: '10px' }}
+            onClick={() => {
+              navigate(isAdminView ? '/dashboard' : '/admin');
+              setIsOpen?.(false);
+            }}
+          >
+            {isAdminView ? <><Building2 size={16} /> Switch to Org View</> : <><LayoutDashboard size={16} /> Switch to Admin View</>}
+          </button>
+        </div>
+      )}
 
       <div className="sidebar-footer">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>

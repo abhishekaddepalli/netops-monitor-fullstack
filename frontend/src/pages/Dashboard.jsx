@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
+import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import Chart from 'react-apexcharts';
-import { TrendingUp, AlertTriangle, Clock, ShieldAlert, Activity } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Clock, ShieldAlert, Activity, Play, Pause, Trash2 } from 'lucide-react';
 import { dashboardApi } from '../api/dashboard';
 import { incidentsApi } from '../api/incidents';
 import { monitorsApi } from '../api/monitors';
@@ -10,8 +10,35 @@ import Skeleton from '../components/ui/Skeleton';
 import EmptyState from '../components/ui/EmptyState';
 import { MonitorTypeIcon } from '../utils/monitorIcons';
 import { formatMs, formatUptime, timeAgo } from '../utils/format';
+import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { apiErrorMessage } from '../api/client';
+
+function MiniUptimeGraph({ checks }) {
+  if (!checks || checks.length === 0) return <span style={{ color: 'var(--white-40)', fontSize: 12 }}>No data</span>;
+  return (
+    <div style={{ display: 'flex', gap: 2, alignItems: 'center', height: 20, width: 100 }}>
+      {checks.map((c, i) => (
+        <div 
+          key={i} 
+          title={`${c.result} - ${c.response_time_ms}ms`}
+          style={{ 
+            flex: 1, 
+            backgroundColor: c.result === 'up' ? 'var(--success-color, #10b981)' : 'var(--danger-color, #ef4444)',
+            height: '100%',
+            borderRadius: 2,
+            opacity: c.result === 'up' ? 0.8 : 1
+          }} 
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { isOperatorOrAbove, isOrgAdmin } = useAuth();
   const { summary: ctxSummary } = useOutletContext();
   const [summary, setSummary] = useState(ctxSummary);
   const [series, setSeries] = useState(null);
@@ -76,6 +103,41 @@ export default function Dashboard() {
     const interval = setInterval(fetchMonitors, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const reloadMonitors = async () => {
+    try {
+      const { data } = await monitorsApi.list({ per_page: 6 });
+      setMonitors(data.data || []);
+    } catch {}
+  };
+
+  async function handlePauseToggle(e, monitor) {
+    e.stopPropagation();
+    try {
+      if (monitor.is_paused) {
+        await monitorsApi.resume(monitor.id);
+        toast.success(`${monitor.name} resumed.`);
+      } else {
+        await monitorsApi.pause(monitor.id);
+        toast.success(`${monitor.name} paused.`);
+      }
+      reloadMonitors();
+    } catch (error) {
+      toast.error(apiErrorMessage(error));
+    }
+  }
+
+  async function handleDelete(e, monitor) {
+    e.stopPropagation();
+    if (!window.confirm(`Delete "${monitor.name}"? This cannot be undone.`)) return;
+    try {
+      await monitorsApi.remove(monitor.id);
+      toast.success(`${monitor.name} deleted.`);
+      reloadMonitors();
+    } catch (error) {
+      toast.error(apiErrorMessage(error));
+    }
+  }
 
   const chartSeries = [{
     name: 'Avg Response Time',
@@ -144,7 +206,7 @@ export default function Dashboard() {
               <div className="panel-sub">All monitors</div>
             </div>
             <div className="tab-row">
-              {[{ h: 24, l: '24h' }, { h: 168, l: '7d' }, { h: 720, l: '30d' }].map((opt) => (
+              {[{ h: 1, l: 'Live' }, { h: 24, l: '24h' }, { h: 168, l: '7d' }, { h: 720, l: '30d' }].map((opt) => (
                 <button key={opt.h} className={`chip${range === opt.h ? ' active' : ''}`} onClick={() => setRange(opt.h)}>
                   {opt.l}
                 </button>
@@ -212,10 +274,19 @@ export default function Dashboard() {
           </div>
         ) : (
           <table className="data-table">
-            <thead><tr><th>Monitor</th><th>Status</th><th>Uptime</th><th>Resp.</th></tr></thead>
+            <thead>
+              <tr>
+                <th style={{ width: '28%' }}>Monitor</th>
+                <th>Status</th>
+                <th>History</th>
+                <th>Uptime</th>
+                <th>Resp.</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
             <tbody>
               {monitors.map((m) => (
-                <tr key={m.id} className="clickable" onClick={() => (window.location.href = `/monitors/${m.id}`)}>
+                <tr key={m.id} className="clickable" onClick={() => navigate(`/monitors/${m.id}`)}>
                   <td>
                     <div className="mon-name-cell">
                       <div className="mon-type-icon"><MonitorTypeIcon type={m.type} /></div>
@@ -226,8 +297,29 @@ export default function Dashboard() {
                     </div>
                   </td>
                   <td><StatusPill status={m.status} /></td>
+                  <td><MiniUptimeGraph checks={m.recent_checks} /></td>
                   <td>{m.uptime_pct != null ? formatUptime(m.uptime_pct) : '—'}</td>
                   <td className="mon-metric">{formatMs(m.last_response_time_ms)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    {isOperatorOrAbove && (
+                      <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
+                        <button className="icon-btn-sm" onClick={(e) => { e.stopPropagation(); navigate(`/monitors/${m.id}`); }} title="View / Test">
+                          <Activity size={14} />
+                        </button>
+                        <button className="icon-btn-sm" onClick={(e) => { e.stopPropagation(); navigate(`/monitors/${m.id}`); }} title="Edit">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                        </button>
+                        <button className="icon-btn-sm" onClick={(e) => handlePauseToggle(e, m)} title={m.is_paused ? 'Resume' : 'Pause'}>
+                          {m.is_paused ? <Play size={14} /> : <Pause size={14} />}
+                        </button>
+                        {isOrgAdmin && (
+                          <button className="icon-btn-sm" onClick={(e) => handleDelete(e, m)} title="Delete">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

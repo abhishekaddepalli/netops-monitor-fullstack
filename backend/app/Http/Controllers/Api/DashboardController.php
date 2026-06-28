@@ -105,11 +105,19 @@ class DashboardController extends Controller
 
         $driver = DB::connection()->getDriverName();
         if ($driver === 'mysql') {
-            $groupBySql = $hours > 24 
-                ? "DATE_FORMAT(checked_at, '%Y-%m-%d 00:00:00')" 
-                : "DATE_FORMAT(DATE_SUB(checked_at, INTERVAL MINUTE(checked_at) % 15 MINUTE), '%Y-%m-%d %H:%i:00')";
+            if ($hours <= 1) {
+                $groupBySql = "DATE_FORMAT(checked_at, '%Y-%m-%d %H:%i:00')";
+            } elseif ($hours <= 24) {
+                $groupBySql = "DATE_FORMAT(DATE_SUB(checked_at, INTERVAL MINUTE(checked_at) % 15 MINUTE), '%Y-%m-%d %H:%i:00')";
+            } else {
+                $groupBySql = "DATE_FORMAT(checked_at, '%Y-%m-%d 00:00:00')";
+            }
         } else {
-            $groupBySql = $hours > 24 ? "strftime('%Y-%m-%d 00:00:00', checked_at)" : "strftime('%Y-%m-%d %H:00:00', checked_at)";
+            if ($hours <= 1) {
+                $groupBySql = "strftime('%Y-%m-%d %H:%M:00', checked_at)";
+            } else {
+                $groupBySql = $hours > 24 ? "strftime('%Y-%m-%d 00:00:00', checked_at)" : "strftime('%Y-%m-%d %H:00:00', checked_at)";
+            }
         }
 
         $series = DB::table('checks')

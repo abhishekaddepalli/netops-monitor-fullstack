@@ -36,9 +36,10 @@ class MonitorController extends Controller
         $monitors = $query->orderBy('sort_order')->orderBy('name')
             ->paginate($request->integer('per_page', 25));
 
-        // Calculate live uptime percentage for the returned monitors
+        // Calculate live uptime percentage and recent checks for the returned monitors
         if ($monitors->isNotEmpty()) {
             $monitorIds = $monitors->pluck('id');
+            
             $uptimeStats = \Illuminate\Support\Facades\DB::table('checks')
                 ->whereIn('monitor_id', $monitorIds)
                 ->where('checked_at', '>=', now()->subDay())
@@ -47,11 +48,29 @@ class MonitorController extends Controller
                 ->get()
                 ->keyBy('monitor_id');
 
-            $monitors->getCollection()->transform(function ($monitor) use ($uptimeStats) {
+            // Fetch last 20 checks for the sparkline
+            $monitorIdsCsv = $monitorIds->implode(',');
+            $recentChecks = \Illuminate\Support\Facades\DB::select("
+                SELECT monitor_id, result, response_time_ms 
+                FROM (
+                    SELECT monitor_id, result, response_time_ms,
+                           ROW_NUMBER() OVER(PARTITION BY monitor_id ORDER BY checked_at DESC) as rn
+                    FROM checks
+                    WHERE monitor_id IN ({$monitorIdsCsv})
+                ) as ranked_checks
+                WHERE rn <= 20
+            ");
+            
+            $recentGrouped = collect($recentChecks)
+                ->groupBy('monitor_id')
+                ->map(fn($checks) => $checks->reverse()->values());
+
+            $monitors->getCollection()->transform(function ($monitor) use ($uptimeStats, $recentGrouped) {
                 $stats = $uptimeStats->get($monitor->id);
                 $monitor->uptime_pct = ($stats && $stats->total_checks > 0)
                     ? round(($stats->up_checks / $stats->total_checks) * 100, 2)
                     : null;
+                $monitor->recent_checks = $recentGrouped->get($monitor->id, []);
                 return $monitor;
             });
         }
@@ -66,7 +85,7 @@ class MonitorController extends Controller
         $monitor->load([
             'sslCertificate', 
             'activeIncident', 
-            'serverMetrics' => fn($q) => $q->latest('created_at')->limit(1)
+            'serverMetrics' => fn($q) => $q->latest('created_at')->limit(30)
         ]);
         
         return response()->json($monitor);
@@ -74,12 +93,16 @@ class MonitorController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $org = $request->attributes->get('organization');
-
-        if (! $org->canAddMonitor()) {
-            return response()->json([
-                'message' => "Monitor limit reached for your plan ({$org->monitor_limit}). Upgrade to add more monitors.",
-            ], 422);
+        $orgId = $request->attributes->get('org_id');
+        $org = Organization::find($orgId);
+        
+        $features = $org->effective_features;
+        if ($org->activeMonitorCount() >= $features['max_monitors']) {
+            return response()->json(['message' => 'Monitor limit reached for your plan. Please upgrade.'], 403);
+        }
+        
+        if (!in_array($request->type, $features['allowed_monitor_types'])) {
+            return response()->json(['message' => 'Monitor type not allowed on your current plan. Please upgrade.'], 403);
         }
 
         $target = $request->input('target');
@@ -222,6 +245,19 @@ class MonitorController extends Controller
         return response()->json($checks);
     }
 
+    public function serverMetrics(Request $request, Monitor $monitor): JsonResponse
+    {
+        $this->authorizeOrgAccess($request, $monitor);
+
+        $metrics = $monitor->serverMetrics()
+            ->when($request->query('from'), fn ($q, $from) => $q->where('created_at', '>=', $from))
+            ->when($request->query('to'), fn ($q, $to) => $q->where('created_at', '<=', $to))
+            ->orderByDesc('created_at')
+            ->paginate($request->integer('per_page', 100));
+
+        return response()->json($metrics);
+    }
+
     public function chartData(Request $request, Monitor $monitor): JsonResponse
     {
         $this->authorizeOrgAccess($request, $monitor);
@@ -309,8 +345,10 @@ class MonitorController extends Controller
     public function import(Request $request): JsonResponse
     {
         $org = $request->attributes->get('organization');
-        if (! $org->canAddMonitor()) {
-            return response()->json(['message' => "Monitor limit reached."], 422);
+        
+        $features = $org->effective_features;
+        if ($org->activeMonitorCount() >= $features['max_monitors']) {
+            return response()->json(['message' => 'Monitor limit reached for your plan. Please upgrade.'], 403);
         }
 
         $request->validate(['file' => 'required|file|mimes:csv,txt']);

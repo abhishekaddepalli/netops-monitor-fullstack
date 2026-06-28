@@ -21,6 +21,13 @@ export default function EditMonitorModal({ monitor, onClose, onUpdated }) {
   const [tcpService, setTcpService] = useState(monitor.config?.service || 'https');
   const [httpMethod, setHttpMethod] = useState(monitor.config?.method || 'GET');
   const [httpKeyword, setHttpKeyword] = useState(monitor.config?.keyword || '');
+  
+  const [snmpVersion, setSnmpVersion] = useState(monitor.config?.version || '2c');
+  const [snmpCommunity, setSnmpCommunity] = useState(monitor.config?.community || 'public');
+  const [snmpUser, setSnmpUser] = useState(monitor.config?.user || '');
+  const [snmpAuth, setSnmpAuth] = useState(monitor.config?.auth_pass || '');
+  const [snmpPriv, setSnmpPriv] = useState(monitor.config?.priv_pass || '');
+  
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -46,6 +53,17 @@ export default function EditMonitorModal({ monitor, onClose, onUpdated }) {
 
     if (monitor.type === 'http' && httpKeyword) {
       payload.config = { ...(payload.config || {}), keyword: httpKeyword };
+    }
+
+    if (monitor.type === 'snmp') {
+      payload.port = port ? Number(port) : 161;
+      payload.config = {
+        version: snmpVersion,
+        community: snmpVersion !== '3' ? snmpCommunity : undefined,
+        user: snmpVersion === '3' ? snmpUser : undefined,
+        auth_pass: snmpVersion === '3' ? snmpAuth : undefined,
+        priv_pass: snmpVersion === '3' ? snmpPriv : undefined
+      };
     }
 
     try {
@@ -126,6 +144,49 @@ export default function EditMonitorModal({ monitor, onClose, onUpdated }) {
             <label className="form-label" htmlFor="m-keyword">Expected keyword (optional)</label>
             <input id="m-keyword" className="form-input" value={httpKeyword} onChange={(e) => setHttpKeyword(e.target.value)} />
           </div>
+        )}
+
+        {monitor.type === 'snmp' && (
+          <>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">SNMP Version</label>
+                <select className="form-select" value={snmpVersion} onChange={(e) => setSnmpVersion(e.target.value)}>
+                  <option value="1">v1</option>
+                  <option value="2c">v2c</option>
+                  <option value="3">v3</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Port</label>
+                <input type="number" className="form-input" placeholder="161" value={port} onChange={(e) => setPort(e.target.value)} />
+              </div>
+            </div>
+
+            {snmpVersion !== '3' ? (
+              <div className="form-group">
+                <label className="form-label">Community String</label>
+                <input className="form-input" value={snmpCommunity} onChange={(e) => setSnmpCommunity(e.target.value)} required />
+              </div>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Security Name (User)</label>
+                  <input className="form-input" value={snmpUser} onChange={(e) => setSnmpUser(e.target.value)} required />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Auth Password</label>
+                    <input className="form-input" type="password" value={snmpAuth} onChange={(e) => setSnmpAuth(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Priv Password</label>
+                    <input className="form-input" type="password" value={snmpPriv} onChange={(e) => setSnmpPriv(e.target.value)} />
+                  </div>
+                </div>
+              </>
+            )}
+          </>
         )}
 
         <div className="form-group">

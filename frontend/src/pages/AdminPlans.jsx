@@ -18,6 +18,31 @@ const ALERT_TYPES = [
   { key: 'sms', label: 'SMS' },
 ];
 
+const MONITOR_TYPES = [
+  { key: 'ping', label: 'Ping / ICMP' },
+  { key: 'http', label: 'HTTP / HTTPS' },
+  { key: 'keyword', label: 'Keyword Check' },
+  { key: 'port', label: 'TCP / UDP Port' },
+  { key: 'dns', label: 'DNS Record' },
+  { key: 'ssl', label: 'SSL Certificate' },
+  { key: 'snmp', label: 'SNMP Monitor' },
+];
+
+const DIAGNOSTIC_TOOLS = [
+  { key: 'ping', label: 'Ping' },
+  { key: 'dns', label: 'DNS Lookup' },
+  { key: 'port', label: 'Port Scanner' },
+  { key: 'ssl', label: 'SSL Checker' },
+  { key: 'whois', label: 'WHOIS' },
+  { key: 'traceroute', label: 'Traceroute' },
+  { key: 'ipinfo', label: 'IP Info' },
+  { key: 'headers', label: 'HTTP Headers' },
+  { key: 'blacklist', label: 'Blacklist Check' },
+  { key: 'ipreputation', label: 'IP Reputation' },
+  { key: 'snmp', label: 'SNMP Walk' },
+  { key: 'network-discovery', label: 'Network Discovery' },
+];
+
 export default function AdminPlans() {
   const toast = useToast();
   const [plans, setPlans] = useState(null);
@@ -60,45 +85,65 @@ export default function AdminPlans() {
         </div>
       </div>
 
-      <div className="panel">
+      <div style={{ paddingBottom: 32 }}>
         {plans === null ? (
-          <div className="panel-body"><Skeleton height={240} /></div>
+          <Skeleton height={240} />
         ) : plans.length === 0 ? (
           <div className="panel-body"><EmptyState icon={ListPlus} title="No plans" /></div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name / Key</th>
-                <th>Price (INR)</th>
-                <th>Monitors</th>
-                <th>Team</th>
-                <th>Interval (s)</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <div className="mon-name">{p.name}</div>
-                    <div className="mon-meta">{p.key}</div>
-                  </td>
-                  <td>
-                    <div>₹{p.price_inr_monthly}/mo</div>
-                    <div className="mon-meta">Y: ₹{p.price_inr_yearly} | HY: ₹{p.price_inr_half_yearly}</div>
-                  </td>
-                  <td className="mon-metric">{p.monitor_limit === -1 ? 'Unlimited' : p.monitor_limit}</td>
-                  <td className="mon-metric">{p.team_member_limit === -1 ? 'Unlimited' : p.team_member_limit}</td>
-                  <td className="mon-metric">{p.check_interval_min_seconds}</td>
-                  <td>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 24, marginTop: 16 }}>
+            {plans.map((p) => (
+              <div key={p.id} style={{ 
+                background: 'var(--navy-800)', borderRadius: 16, padding: 24, 
+                border: '1px solid var(--navy-border)', display: 'flex', flexDirection: 'column', gap: 16,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'transform 0.2s', cursor: 'default'
+              }} onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--text-main)' }}>{p.name}</h3>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.key}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
                     <button className="icon-btn" onClick={() => setEditPlan(p)} title="Edit"><Pencil size={15} /></button>
-                    <button className="icon-btn" style={{ marginLeft: 8 }} onClick={() => handleDelete(p.id)} title="Delete"><Trash size={15} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <button className="icon-btn" onClick={() => handleDelete(p.id)} title="Delete"><Trash size={15} /></button>
+                  </div>
+                </div>
+                
+                <div style={{ padding: '16px 0', borderTop: '1px solid var(--navy-700)', borderBottom: '1px solid var(--navy-700)' }}>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--primary-400)', display: 'flex', alignItems: 'baseline' }}>
+                    ₹{p.price_inr_monthly}<span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500, marginLeft: 4 }}>/mo</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                    <span className="tag" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: '1px solid var(--navy-600)', padding: '4px 8px', borderRadius: 6, fontSize: 11 }}>
+                      Y: ₹{p.price_inr_yearly}
+                    </span>
+                    <span className="tag" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: '1px solid var(--navy-600)', padding: '4px 8px', borderRadius: 6, fontSize: 11 }}>
+                      HY: ₹{p.price_inr_half_yearly}
+                    </span>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, fontSize: 13 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Monitors</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{p.monitor_limit === -1 ? 'Unlimited' : p.monitor_limit}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Team Limit</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{p.team_member_limit === -1 ? 'Unlimited' : p.team_member_limit}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Min Interval</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{p.check_interval_min_seconds}s</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>API / Alerts</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{p.api_request_limit_monthly === -1 ? 'Unl.' : p.api_request_limit_monthly} / {p.alert_limit_monthly === -1 ? 'Unl.' : p.alert_limit_monthly}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
@@ -128,8 +173,7 @@ function CreatePlanModal({ onClose, onCreated }) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleFeatureToggle = (key) => {
-    const fKey = `alert_${key}`;
+  const handleFeatureToggle = (fKey) => {
     setFormData(prev => {
       const features = prev.features || [];
       if (features.includes(fKey)) return { ...prev, features: features.filter(f => f !== fKey) };
@@ -223,20 +267,109 @@ function CreatePlanModal({ onClose, onCreated }) {
         </div>
 
         <div style={{ fontWeight: 600, color: 'var(--white-90)', borderBottom: '1px solid var(--navy-600)', paddingBottom: 8, marginTop: 8 }}>Allowed Alert Channels</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginTop: 8 }}>
           {ALERT_TYPES.map(type => {
-            const isSelected = (formData.features || []).includes(`alert_${type.key}`);
+            const fKey = `alert_${type.key}`;
+            const isSelected = (formData.features || []).includes(fKey);
             return (
-              <label key={type.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: isSelected ? 'var(--white-90)' : 'var(--white-60)' }}>
-                {isSelected ? <CheckSquare size={16} color="var(--primary-400)" /> : <Square size={16} />}
-                <span style={{ fontSize: 13 }}>{type.label}</span>
-                <input 
-                  type="checkbox" 
-                  checked={isSelected} 
-                  onChange={() => handleFeatureToggle(type.key)} 
-                  style={{ display: 'none' }}
-                />
-              </label>
+              <div 
+                key={type.key} 
+                onClick={() => handleFeatureToggle(fKey)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                  background: 'var(--navy-800)', padding: '12px 16px', borderRadius: 12,
+                  border: isSelected ? '1px solid var(--primary-500)' : '1px solid var(--navy-600)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{
+                  width: 36, height: 20, borderRadius: 10, flexShrink: 0,
+                  background: isSelected ? 'var(--primary-500)' : 'var(--navy-600)',
+                  position: 'relative', transition: 'background 0.3s'
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 2, left: isSelected ? 18 : 2,
+                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.3s ease, box-shadow 0.2s',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 500, color: isSelected ? 'var(--text-main)' : 'var(--text-secondary)' }}>
+                  {type.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ fontWeight: 600, color: 'var(--white-90)', borderBottom: '1px solid var(--navy-600)', paddingBottom: 8, marginTop: 24 }}>Allowed Monitors</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginTop: 8 }}>
+          {MONITOR_TYPES.map(type => {
+            const fKey = `monitor_${type.key}`;
+            const isSelected = (formData.features || []).includes(fKey);
+            return (
+              <div 
+                key={type.key} 
+                onClick={() => handleFeatureToggle(fKey)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                  background: 'var(--navy-800)', padding: '12px 16px', borderRadius: 12,
+                  border: isSelected ? '1px solid var(--primary-500)' : '1px solid var(--navy-600)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{
+                  width: 36, height: 20, borderRadius: 10, flexShrink: 0,
+                  background: isSelected ? 'var(--primary-500)' : 'var(--navy-600)',
+                  position: 'relative', transition: 'background 0.3s'
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 2, left: isSelected ? 18 : 2,
+                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.3s ease, box-shadow 0.2s',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 500, color: isSelected ? 'var(--text-main)' : 'var(--text-secondary)' }}>
+                  {type.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ fontWeight: 600, color: 'var(--white-90)', borderBottom: '1px solid var(--navy-600)', paddingBottom: 8, marginTop: 24 }}>Allowed Diagnostic Tools</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginTop: 8 }}>
+          {DIAGNOSTIC_TOOLS.map(type => {
+            const fKey = `tool_${type.key}`;
+            const isSelected = (formData.features || []).includes(fKey);
+            return (
+              <div 
+                key={type.key} 
+                onClick={() => handleFeatureToggle(fKey)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                  background: 'var(--navy-800)', padding: '12px 16px', borderRadius: 12,
+                  border: isSelected ? '1px solid var(--primary-500)' : '1px solid var(--navy-600)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{
+                  width: 36, height: 20, borderRadius: 10, flexShrink: 0,
+                  background: isSelected ? 'var(--primary-500)' : 'var(--navy-600)',
+                  position: 'relative', transition: 'background 0.3s'
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 2, left: isSelected ? 18 : 2,
+                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.3s ease, box-shadow 0.2s',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 500, color: isSelected ? 'var(--text-main)' : 'var(--text-secondary)' }}>
+                  {type.label}
+                </span>
+              </div>
             );
           })}
         </div>
@@ -261,8 +394,7 @@ function EditPlanModal({ plan, onClose, onUpdated }) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleFeatureToggle = (key) => {
-    const fKey = `alert_${key}`;
+  const handleFeatureToggle = (fKey) => {
     setFormData(prev => {
       const features = prev.features || [];
       if (features.includes(fKey)) return { ...prev, features: features.filter(f => f !== fKey) };
@@ -350,20 +482,109 @@ function EditPlanModal({ plan, onClose, onUpdated }) {
         </div>
 
         <div style={{ fontWeight: 600, color: 'var(--white-90)', borderBottom: '1px solid var(--navy-600)', paddingBottom: 8, marginTop: 8 }}>Allowed Alert Channels</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginTop: 8 }}>
           {ALERT_TYPES.map(type => {
-            const isSelected = (formData.features || []).includes(`alert_${type.key}`);
+            const fKey = `alert_${type.key}`;
+            const isSelected = (formData.features || []).includes(fKey);
             return (
-              <label key={type.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: isSelected ? 'var(--white-90)' : 'var(--white-60)' }}>
-                {isSelected ? <CheckSquare size={16} color="var(--primary-400)" /> : <Square size={16} />}
-                <span style={{ fontSize: 13 }}>{type.label}</span>
-                <input 
-                  type="checkbox" 
-                  checked={isSelected} 
-                  onChange={() => handleFeatureToggle(type.key)} 
-                  style={{ display: 'none' }}
-                />
-              </label>
+              <div 
+                key={type.key} 
+                onClick={() => handleFeatureToggle(fKey)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                  background: 'var(--navy-800)', padding: '12px 16px', borderRadius: 12,
+                  border: isSelected ? '1px solid var(--primary-500)' : '1px solid var(--navy-600)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{
+                  width: 36, height: 20, borderRadius: 10, flexShrink: 0,
+                  background: isSelected ? 'var(--primary-500)' : 'var(--navy-600)',
+                  position: 'relative', transition: 'background 0.3s'
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 2, left: isSelected ? 18 : 2,
+                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.3s ease, box-shadow 0.2s',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 500, color: isSelected ? 'var(--text-main)' : 'var(--text-secondary)' }}>
+                  {type.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ fontWeight: 600, color: 'var(--white-90)', borderBottom: '1px solid var(--navy-600)', paddingBottom: 8, marginTop: 24 }}>Allowed Monitors</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginTop: 8 }}>
+          {MONITOR_TYPES.map(type => {
+            const fKey = `monitor_${type.key}`;
+            const isSelected = (formData.features || []).includes(fKey);
+            return (
+              <div 
+                key={type.key} 
+                onClick={() => handleFeatureToggle(fKey)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                  background: 'var(--navy-800)', padding: '12px 16px', borderRadius: 12,
+                  border: isSelected ? '1px solid var(--primary-500)' : '1px solid var(--navy-600)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{
+                  width: 36, height: 20, borderRadius: 10, flexShrink: 0,
+                  background: isSelected ? 'var(--primary-500)' : 'var(--navy-600)',
+                  position: 'relative', transition: 'background 0.3s'
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 2, left: isSelected ? 18 : 2,
+                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.3s ease, box-shadow 0.2s',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 500, color: isSelected ? 'var(--text-main)' : 'var(--text-secondary)' }}>
+                  {type.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ fontWeight: 600, color: 'var(--white-90)', borderBottom: '1px solid var(--navy-600)', paddingBottom: 8, marginTop: 24 }}>Allowed Diagnostic Tools</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginTop: 8 }}>
+          {DIAGNOSTIC_TOOLS.map(type => {
+            const fKey = `tool_${type.key}`;
+            const isSelected = (formData.features || []).includes(fKey);
+            return (
+              <div 
+                key={type.key} 
+                onClick={() => handleFeatureToggle(fKey)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                  background: 'var(--navy-800)', padding: '12px 16px', borderRadius: 12,
+                  border: isSelected ? '1px solid var(--primary-500)' : '1px solid var(--navy-600)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{
+                  width: 36, height: 20, borderRadius: 10, flexShrink: 0,
+                  background: isSelected ? 'var(--primary-500)' : 'var(--navy-600)',
+                  position: 'relative', transition: 'background 0.3s'
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 2, left: isSelected ? 18 : 2,
+                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.3s ease, box-shadow 0.2s',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 500, color: isSelected ? 'var(--text-main)' : 'var(--text-secondary)' }}>
+                  {type.label}
+                </span>
+              </div>
             );
           })}
         </div>

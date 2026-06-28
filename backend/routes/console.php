@@ -2,6 +2,7 @@
 
 use App\Jobs\CheckSslExpiryJob;
 use App\Jobs\DispatchDueMonitorChecksJob;
+use App\Jobs\GeneratePeriodicReports;
 use App\Jobs\RollupCheckStatsJob;
 use Illuminate\Support\Facades\Schedule;
 
@@ -35,3 +36,10 @@ Schedule::command('sanctum:prune-expired --hours=24')->weekly();
 
 // Prune audit logs daily based on retention settings.
 Schedule::command('logs:prune')->daily();
+
+// Periodic Performance Reports
+Schedule::job(new GeneratePeriodicReports('weekly'))->weeklyOn(0, '08:00'); // Sundays at 8am
+Schedule::job(new GeneratePeriodicReports('monthly'))->monthlyOn(1, '08:00'); // 1st of month at 8am
+
+// Continuous Network Discovery
+Schedule::command('discovery:run')->everyFiveMinutes()->withoutOverlapping();

@@ -7,8 +7,6 @@ import Skeleton from '../components/ui/Skeleton';
 export default function AdminPaymentGateways() {
   const toast = useToast();
   const [settings, setSettings] = useState(null);
-  const [stripeKey, setStripeKey] = useState('');
-  const [stripeSecret, setStripeSecret] = useState('');
   const [razorpayKey, setRazorpayKey] = useState('');
   const [razorpaySecret, setRazorpaySecret] = useState('');
   const [upiId, setUpiId] = useState('');
@@ -19,8 +17,6 @@ export default function AdminPaymentGateways() {
     try {
       const { data } = await adminApi.getSettings();
       setSettings(data);
-      setStripeKey(data.stripe_key || '');
-      setStripeSecret(data.stripe_secret || '');
       setRazorpayKey(data.razorpay_key || '');
       setRazorpaySecret(data.razorpay_secret || '');
       setUpiId(data.upi_id || '');
@@ -38,8 +34,6 @@ export default function AdminPaymentGateways() {
     setSubmitting(true);
     try {
       await adminApi.updateSettings({
-        stripe_key: stripeKey,
-        stripe_secret: stripeSecret,
         razorpay_key: razorpayKey,
         razorpay_secret: razorpaySecret,
         upi_id: upiId,
@@ -71,17 +65,6 @@ export default function AdminPaymentGateways() {
             <Skeleton height={200} />
           ) : (
             <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label className="form-label">Stripe Public Key</label>
-                <input className="form-input" value={stripeKey} onChange={(e) => setStripeKey(e.target.value)} placeholder="pk_test_..." />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Stripe Secret Key</label>
-                <input type="password" className="form-input" value={stripeSecret} onChange={(e) => setStripeSecret(e.target.value)} placeholder="sk_test_..." />
-              </div>
-
-              <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '20px 0' }} />
-
               <div className="form-group">
                 <label className="form-label">Razorpay Key ID</label>
                 <input className="form-input" value={razorpayKey} onChange={(e) => setRazorpayKey(e.target.value)} placeholder="rzp_test_..." />

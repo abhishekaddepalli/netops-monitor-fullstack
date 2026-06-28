@@ -15,6 +15,16 @@ import { MONITOR_TYPE_LABELS, formatMs, timeAgo, formatDateTime } from '../utils
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 
+function formatBytes(b) {
+  const bytes = Number(b);
+  if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  if (i < 0) return bytes + ' B';
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 export default function MonitorDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -189,6 +199,36 @@ export default function MonitorDetail() {
     }
   };
 
+  async function handleToggleInterface(ifaceName) {
+    if (!isOperatorOrAbove) return;
+    const currentConfig = typeof monitor.config === 'string' ? JSON.parse(monitor.config || '{}') : (monitor.config || {});
+    let monitored = currentConfig.monitored_interfaces;
+    
+    if (!Array.isArray(monitored)) {
+      // If it wasn't set, default to all CURRENT interfaces so we don't break backward compat,
+      // but the user is explicitly toggling one, so we build the list first.
+      const sm = checks.find(c => c.metrics && c.metrics.interfaces)?.metrics;
+      const allIfaces = (sm?.interfaces || []).filter(i => i.name !== '__sys_info__').map(i => i.name);
+      monitored = allIfaces;
+    }
+    
+    if (monitored.includes(ifaceName)) {
+      monitored = monitored.filter(name => name !== ifaceName);
+    } else {
+      monitored = [...monitored, ifaceName];
+    }
+    
+    const newConfig = { ...currentConfig, monitored_interfaces: monitored };
+    
+    try {
+      await monitorsApi.update(id, { config: newConfig });
+      setMonitor(prev => ({ ...prev, config: newConfig }));
+      toast.success('Interface monitoring updated.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to update interface.'));
+    }
+  }
+
   return (
     <>
       <div className="breadcrumb">
@@ -284,7 +324,7 @@ export default function MonitorDetail() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30, marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--white-10)' }}>
                 <div>
-                  <h4 style={{ color: 'var(--white)', marginBottom: 8, fontSize: 14 }}>Linux Guide (Cron)</h4>
+                  <h4 style={{ color: 'var(--white-100)', marginBottom: 8, fontSize: 14 }}>Linux Guide (Cron)</h4>
                   <ol style={{ paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <li>Create a script file: <code style={{ background: 'var(--white-10)', padding: '2px 6px', borderRadius: 4 }}>nano netops-agent.sh</code></li>
                     <li>Paste the copied Bash script and save the file.</li>
@@ -296,7 +336,7 @@ export default function MonitorDetail() {
                   </ol>
                 </div>
                 <div>
-                  <h4 style={{ color: 'var(--white)', marginBottom: 8, fontSize: 14 }}>Windows Guide (Task Scheduler)</h4>
+                  <h4 style={{ color: 'var(--white-100)', marginBottom: 8, fontSize: 14 }}>Windows Guide (Task Scheduler)</h4>
                   <ol style={{ paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <li>Create a script file (e.g. <code style={{ background: 'var(--white-10)', padding: '2px 6px', borderRadius: 4 }}>C:\netops-agent.ps1</code>).</li>
                     <li>Paste the copied PowerShell script and save it.</li>
@@ -311,7 +351,7 @@ export default function MonitorDetail() {
                 <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--white-10)', paddingTop: 20 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
                     <div>
-                      <h4 style={{ color: 'var(--white)', marginBottom: 8, fontSize: 14 }}>MikroTik RouterOS Native Guide</h4>
+                      <h4 style={{ color: 'var(--white-100)', marginBottom: 8, fontSize: 14 }}>MikroTik RouterOS Native Guide</h4>
                       <ol style={{ paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <li>Log in via Winbox or WebFig.</li>
                         <li>Go to <strong>System</strong> &gt; <strong>Scripts</strong>, click <strong>Add New</strong>.</li>
@@ -323,7 +363,7 @@ export default function MonitorDetail() {
                       </ol>
                     </div>
                     <div>
-                      <h4 style={{ color: 'var(--white)', marginBottom: 8, fontSize: 14 }}>OLT / Switch SNMP Bridge Guide</h4>
+                      <h4 style={{ color: 'var(--white-100)', marginBottom: 8, fontSize: 14 }}>OLT / Switch SNMP Bridge Guide</h4>
                       <ol style={{ paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <li>Copy the <strong>Python</strong> template script.</li>
                         <li>Save it as <code>olt-bridge.py</code> on an internal server/Raspberry Pi.</li>
@@ -341,56 +381,51 @@ export default function MonitorDetail() {
         </div>
       )}
 
-      {monitor.type === 'server_agent' && monitor.server_metrics?.[0] && (() => {
+      {['server_agent', 'snmp'].includes(monitor.type) && monitor.server_metrics?.[0] && (() => {
         const sm = monitor.server_metrics[0];
+        const sysInfo = sm.interfaces?.find(i => i.name === '__sys_info__');
         return (
-          <>
-            <div className="metric-strip" style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-               <div className="metric-box">
-                  <div className="metric-box-label">CPU Usage</div>
-                  <div className="metric-box-val">{Number(sm.cpu_usage_pct).toFixed(1)}%</div>
-                  <div style={{ marginTop: 8, height: 4, background: 'var(--white-10)', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.min(100, sm.cpu_usage_pct)}%`, height: '100%', background: sm.cpu_usage_pct > 80 ? 'var(--red-400)' : 'var(--green-400)' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 20 }}>
+            {sysInfo && (
+              <div className="panel" style={{ background: 'var(--navy-900)' }}>
+                <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: 'var(--white-50)' }}>Device Name:</span>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--white-90)' }}>{sysInfo.sysName || 'Unknown'}</span>
                   </div>
-               </div>
-               <div className="metric-box">
-                  <div className="metric-box-label">RAM Usage</div>
-                  <div className="metric-box-val">{Number(sm.ram_usage_pct).toFixed(1)}%</div>
-                  <div style={{ marginTop: 8, height: 4, background: 'var(--white-10)', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.min(100, sm.ram_usage_pct)}%`, height: '100%', background: sm.ram_usage_pct > 80 ? 'var(--red-400)' : 'var(--green-400)' }} />
-                  </div>
-               </div>
-               <div className="metric-box">
-                  <div className="metric-box-label">Disk Usage</div>
-                  <div className="metric-box-val">{Number(sm.disk_usage_pct).toFixed(1)}%</div>
-                  <div style={{ marginTop: 8, height: 4, background: 'var(--white-10)', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.min(100, sm.disk_usage_pct)}%`, height: '100%', background: sm.disk_usage_pct > 80 ? 'var(--red-400)' : 'var(--green-400)' }} />
-                  </div>
-               </div>
-            </div>
-
-            <div className="panel" style={{ marginBottom: 20 }}>
-              <div className="panel-head">
-                <div className="panel-title">Network Interfaces & VLANs</div>
+                  {sysInfo.sysDescr && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                      <span style={{ fontSize: 13, color: 'var(--white-50)', whiteSpace: 'nowrap' }}>System Details:</span>
+                      <span style={{ fontSize: 13, color: 'var(--white-80)', lineHeight: 1.4 }}>{sysInfo.sysDescr}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="panel-body" style={{ padding: 0 }}>
-                <table className="table">
-                  <thead><tr><th>Interface</th><th>Status</th></tr></thead>
-                  <tbody>
-                    {(sm.interfaces || []).map((iface, i) => (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 500 }}>{iface.name}</td>
-                        <td><StatusPill status={iface.status?.toLowerCase() === 'up' ? 'up' : 'down'} label={iface.status?.toUpperCase()} /></td>
-                      </tr>
-                    ))}
-                    {(!sm.interfaces || sm.interfaces.length === 0) && (
-                      <tr><td colSpan={2} style={{ textAlign: 'center', color: 'var(--white-40)' }}>No interfaces reported</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
+            )}
+            <div className="metric-strip" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+             <div className="metric-box">
+                <div className="metric-box-label">CPU Usage</div>
+                <div className="metric-box-val">{Number(sm.cpu_usage_pct).toFixed(1)}%</div>
+                <div style={{ marginTop: 8, height: 4, background: 'var(--white-10)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(100, sm.cpu_usage_pct)}%`, height: '100%', background: sm.cpu_usage_pct > 80 ? 'var(--red-400)' : 'var(--green-400)' }} />
+                </div>
+             </div>
+             <div className="metric-box">
+                <div className="metric-box-label">RAM/Memory Usage</div>
+                <div className="metric-box-val">{Number(sm.ram_usage_pct).toFixed(1)}%</div>
+                <div style={{ marginTop: 8, height: 4, background: 'var(--white-10)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(100, sm.ram_usage_pct)}%`, height: '100%', background: sm.ram_usage_pct > 80 ? 'var(--red-400)' : 'var(--green-400)' }} />
+                </div>
+             </div>
+             <div className="metric-box">
+                <div className="metric-box-label">Disk/Storage Usage</div>
+                <div className="metric-box-val">{Number(sm.disk_usage_pct).toFixed(1)}%</div>
+                <div style={{ marginTop: 8, height: 4, background: 'var(--white-10)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(100, sm.disk_usage_pct)}%`, height: '100%', background: sm.disk_usage_pct > 80 ? 'var(--red-400)' : 'var(--green-400)' }} />
+                </div>
+             </div>
+          </div>
+          </div>
         );
       })()}
 
@@ -494,6 +529,122 @@ export default function MonitorDetail() {
           )}
         </div>
       </div>
+
+      {['server_agent', 'snmp'].includes(monitor.type) && monitor.server_metrics?.[0] && (() => {
+        const sm = monitor.server_metrics[0];
+        const realInterfaces = (sm.interfaces || []).filter(i => i.name !== '__sys_info__');
+        
+        return (
+          <div className="panel" style={{ marginTop: 20 }}>
+            <div className="panel-head">
+              <div className="panel-title">Network Interfaces & VLANs</div>
+            </div>
+            <div className="panel-body" style={{ padding: 16 }}>
+              {realInterfaces.length === 0 ? (
+                <EmptyState title="No interfaces reported" subtitle="We couldn't find any network interfaces on this device." />
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+                  {realInterfaces.map((iface, i) => (
+                    <div key={i} style={{ 
+                      background: 'var(--bg-1)', 
+                      border: '2px solid var(--border)', 
+                      borderRadius: 12, 
+                      padding: 16,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--white-90)', wordBreak: 'break-all' }}>
+                          {iface.name}
+                        </div>
+                        <StatusPill status={iface.status?.toLowerCase() === 'up' ? 'up' : 'down'} label={iface.status?.toUpperCase()} />
+                      </div>
+                      
+                      {iface.ips && iface.ips.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {iface.ips.map((ip, idx) => (
+                            <span key={idx} style={{ 
+                              fontSize: 11, 
+                              background: 'var(--navy-900)', 
+                              color: 'var(--white-70)',
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              fontFamily: 'var(--font-mono)'
+                            }}>
+                              {ip}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ 
+                        background: 'var(--navy-900)', 
+                        padding: 12, 
+                        borderRadius: 8,
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 12
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span style={{ fontSize: 11, color: 'var(--white-50)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Total In</span>
+                          <span style={{ fontSize: 13, color: 'var(--green-400)', fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
+                            ↓ {formatBytes(iface.in_octets)}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span style={{ fontSize: 11, color: 'var(--white-50)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Total Out</span>
+                          <span style={{ fontSize: 13, color: 'var(--primary-400)', fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
+                            ↑ {formatBytes(iface.out_octets)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {isOperatorOrAbove && (
+                        <div style={{ marginTop: 8, borderTop: '1px solid var(--navy-700)', paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, color: 'var(--white-80)' }}>Monitor for Alerts</span>
+                          <label style={{ position: 'relative', display: 'inline-block', width: 36, height: 20 }}>
+                            <input 
+                              type="checkbox" 
+                              checked={
+                                (Array.isArray(typeof monitor.config === 'string' ? JSON.parse(monitor.config || '{}').monitored_interfaces : (monitor.config || {}).monitored_interfaces))
+                                ? ((typeof monitor.config === 'string' ? JSON.parse(monitor.config || '{}').monitored_interfaces : (monitor.config || {}).monitored_interfaces).includes(iface.name))
+                                : true // If not set, all are monitored by default
+                              }
+                              onChange={() => handleToggleInterface(iface.name)}
+                              style={{ opacity: 0, width: 0, height: 0 }} 
+                            />
+                            <span style={{
+                              position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                              backgroundColor: (
+                                (Array.isArray(typeof monitor.config === 'string' ? JSON.parse(monitor.config || '{}').monitored_interfaces : (monitor.config || {}).monitored_interfaces))
+                                ? ((typeof monitor.config === 'string' ? JSON.parse(monitor.config || '{}').monitored_interfaces : (monitor.config || {}).monitored_interfaces).includes(iface.name))
+                                : true
+                              ) ? 'var(--primary-500)' : 'var(--navy-600)',
+                              transition: '.4s', borderRadius: 20
+                            }}>
+                              <span style={{
+                                position: 'absolute', content: '""', height: 16, width: 16, left: 2, bottom: 2,
+                                backgroundColor: 'white', transition: '.4s', borderRadius: '50%',
+                                transform: (
+                                  (Array.isArray(typeof monitor.config === 'string' ? JSON.parse(monitor.config || '{}').monitored_interfaces : (monitor.config || {}).monitored_interfaces))
+                                  ? ((typeof monitor.config === 'string' ? JSON.parse(monitor.config || '{}').monitored_interfaces : (monitor.config || {}).monitored_interfaces).includes(iface.name))
+                                  : true
+                                ) ? 'translateX(16px)' : 'translateX(0)'
+                              }} />
+                            </span>
+                          </label>
+                        </div>
+                      )}
+
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {showEdit && (
         <EditMonitorModal 

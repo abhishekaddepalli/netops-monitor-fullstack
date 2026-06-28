@@ -34,10 +34,17 @@ apiClient.interceptors.response.use(
 export function apiErrorMessage(error, fallback = 'Something went wrong.') {
   const data = error?.response?.data;
   if (!data) return error?.message || fallback;
-  if (data.message) return data.message;
+  
+  let msg = fallback;
+  if (data.message) msg = data.message;
+  
+  if (data.error) {
+    msg += ' (Details: ' + data.error + ')';
+  }
+  
   if (data.errors) {
     const first = Object.values(data.errors)[0];
     return Array.isArray(first) ? first[0] : String(first);
   }
-  return fallback;
+  return msg;
 }

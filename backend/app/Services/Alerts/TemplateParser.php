@@ -8,60 +8,61 @@ use App\Models\NotificationTemplate;
 class TemplateParser
 {
     /**
-     * Parse a template for a specific channel and event type, substituting incident variables.
+     * Parse a template for a specific channel and event type, substituting variables.
      */
-    public static function parse(string $channelType, Incident $incident, string $event): string
+    public static function parse(string $channelType, ?Incident $incident, string $event, array $customReplacements = []): string
     {
         $template = NotificationTemplate::where('channel_type', $channelType)
             ->where('event_type', $event)
             ->where('is_active', true)
             ->first();
 
-        $monitor = $incident->monitor;
-        $config = is_array($monitor->config) ? $monitor->config : [];
+        $replacements = $customReplacements;
 
-        // Get the actual error message. The incident model doesn't have an error_message 
-        // column, so we parse it from the root cause, title, or the first auto-generated update.
-        $errorMessage = $incident->root_cause 
-            ?? $incident->updates()->oldest()->first()?->message 
-            ?? $incident->title 
-            ?? 'Unknown error';
+        if ($incident) {
+            $monitor = $incident->monitor;
+            $config = is_array($monitor->config) ? $monitor->config : [];
 
-        // Clean up "Auto-incident created — 3 consecutive failed checks. " prefix if present
-        $errorMessage = preg_replace('/^Auto-incident created — \d+ consecutive failed checks\. /', '', $errorMessage);
+            $errorMessage = $incident->root_cause 
+                ?? $incident->updates()->oldest()->first()?->message 
+                ?? $incident->title 
+                ?? 'Unknown error';
 
-        // Build standard replacements
-        $replacements = [
-            '{{monitor.name}}' => $monitor->name,
-            '{{monitor.type}}' => strtoupper($monitor->type),
-            '{{monitor.target}}' => $monitor->target ?? 'N/A',
-            '{{monitor.url}}' => $monitor->target ?? 'N/A', // Backwards compatibility
-            '{{monitor.port}}' => $monitor->port ?? 'N/A',
-            '{{monitor.interval}}' => $monitor->check_interval_seconds . 's',
-            '{{incident.error}}' => $errorMessage,
-            '{{incident.started_at}}' => $incident->started_at ? $incident->started_at->toDateTimeString() : 'N/A',
-            '{{incident.resolved_at}}' => $incident->resolved_at ? $incident->resolved_at->toDateTimeString() : 'N/A',
-            '{{incident.severity}}' => strtoupper($incident->severity),
-            '{{time}}' => now()->format('H:i:s'),
-            '{{date}}' => now()->format('Y-m-d'),
-        ];
+            $errorMessage = preg_replace('/^Auto-incident created — \d+ consecutive failed checks\. /', '', $errorMessage);
 
-        // Inject type-specific parameters
-        if ($monitor->type === 'ssl' && $monitor->sslCertificate) {
-            $replacements['{{ssl.issuer}}'] = $monitor->sslCertificate->issuer ?? 'Unknown';
-            $replacements['{{ssl.valid_to}}'] = $monitor->sslCertificate->valid_to ? $monitor->sslCertificate->valid_to->toDateTimeString() : 'Unknown';
-            $replacements['{{ssl.days_remaining}}'] = $monitor->sslCertificate->valid_to ? now()->diffInDays($monitor->sslCertificate->valid_to, false) : 'N/A';
-        } elseif ($monitor->type === 'dns') {
-            $replacements['{{dns.type}}'] = $config['dns_type'] ?? 'N/A';
-            $replacements['{{dns.expected}}'] = $config['expected_value'] ?? 'N/A';
-        } elseif ($monitor->type === 'heartbeat') {
-            $replacements['{{heartbeat.last_ping}}'] = $monitor->heartbeat_last_ping_at 
-                ? $monitor->heartbeat_last_ping_at->toDateTimeString() 
-                : 'Never received';
-            $replacements['{{heartbeat.url}}'] = $monitor->heartbeatUrl();
-        } elseif ($monitor->type === 'api') {
-            $replacements['{{api.method}}'] = $config['method'] ?? 'GET';
+            $replacements = array_merge($replacements, [
+                '{{monitor.name}}' => $monitor->name,
+                '{{monitor.type}}' => strtoupper($monitor->type),
+                '{{monitor.target}}' => $monitor->target ?? 'N/A',
+                '{{monitor.url}}' => $monitor->target ?? 'N/A',
+                '{{monitor.port}}' => $monitor->port ?? 'N/A',
+                '{{monitor.interval}}' => $monitor->check_interval_seconds . 's',
+                '{{incident.error}}' => $errorMessage,
+                '{{incident.started_at}}' => $incident->started_at ? $incident->started_at->toDateTimeString() : 'N/A',
+                '{{incident.resolved_at}}' => $incident->resolved_at ? $incident->resolved_at->toDateTimeString() : 'N/A',
+                '{{incident.duration}}' => $incident->resolved_at && $incident->started_at ? $incident->started_at->diffForHumans($incident->resolved_at, true) : 'Ongoing',
+                '{{incident.severity}}' => strtoupper($incident->severity),
+            ]);
+
+            if ($monitor->type === 'ssl' && $monitor->sslCertificate) {
+                $replacements['{{ssl.issuer}}'] = $monitor->sslCertificate->issuer ?? 'Unknown';
+                $replacements['{{ssl.valid_to}}'] = $monitor->sslCertificate->valid_to ? $monitor->sslCertificate->valid_to->toDateTimeString() : 'Unknown';
+                $replacements['{{ssl.days_remaining}}'] = $monitor->sslCertificate->valid_to ? now()->diffInDays($monitor->sslCertificate->valid_to, false) : 'N/A';
+            } elseif ($monitor->type === 'dns') {
+                $replacements['{{dns.type}}'] = $config['dns_type'] ?? 'N/A';
+                $replacements['{{dns.expected}}'] = $config['expected_value'] ?? 'N/A';
+            } elseif ($monitor->type === 'heartbeat') {
+                $replacements['{{heartbeat.last_ping}}'] = $monitor->heartbeat_last_ping_at 
+                    ? $monitor->heartbeat_last_ping_at->toDateTimeString() 
+                    : 'Never received';
+                $replacements['{{heartbeat.url}}'] = $monitor->heartbeatUrl();
+            } elseif ($monitor->type === 'api') {
+                $replacements['{{api.method}}'] = $config['method'] ?? 'GET';
+            }
         }
+
+        $replacements['{{time}}'] = now()->format('H:i:s');
+        $replacements['{{date}}'] = now()->format('Y-m-d');
 
         // Build monitor.details block
         $detailsText = "";
@@ -96,24 +97,35 @@ class TemplateParser
 
         // Text fallback for non-email channels
         $statusStr = $isDown ? 'DOWN' : 'UP';
-        $msg = "[$statusStr] {$monitor->name} ({$monitor->type})\n";
+        if (!$incident) {
+            $statusStr = 'INFO';
+        }
+        $monitorName = $replacements['{{monitor.name}}'] ?? 'System';
+        $monitorType = $replacements['{{monitor.type}}'] ?? 'General';
+        
+        $msg = "[$statusStr] {$monitorName} ({$monitorType})\n";
         $msg .= "Time: " . now()->format('H:i:s Y-m-d') . "\n";
-        if ($isDown) {
-            $msg .= "Error: {$incident->error_message}\n";
+        if ($isDown && $incident) {
+            $msg .= "Error: " . ($replacements['{{incident.error}}'] ?? 'Unknown error') . "\n";
         }
         $msg .= "\nDetails:\n{$detailsText}";
         return $msg;
     }
 
-    private static function buildHtmlEmail(Incident $incident, bool $isDown, array $replacements, string $detailsHtmlInner): string
+    private static function buildHtmlEmail(?Incident $incident, bool $isDown, array $replacements, string $detailsHtmlInner): string
     {
         $color = $isDown ? '#ef4444' : '#22c55e';
         $icon = $isDown ? '🚨' : '✅';
-        $title = $isDown ? 'Monitor Alert: Service Down' : 'Monitor Recovered: Service Up';
+        $title = $incident ? ($isDown ? 'Monitor Alert: Service Down' : 'Monitor Recovered: Service Up') : 'System Alert';
         $statusText = $isDown ? 'DOWN' : 'RECOVERED';
+        if (!$incident) {
+            $statusText = 'INFO';
+            $color = '#3b82f6';
+            $icon = 'ℹ️';
+        }
         
         $errorBlock = '';
-        if ($isDown) {
+        if ($isDown && $incident) {
             $errorBlock = "
                 <div style='background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px; padding: 16px; margin-bottom: 24px; text-align: left;'>
                     <h3 style='color: #991b1b; font-size: 14px; font-weight: 700; margin: 0 0 8px 0;'>Error Details</h3>

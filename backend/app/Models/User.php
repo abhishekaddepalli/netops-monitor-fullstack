@@ -82,12 +82,13 @@ class User extends Authenticatable
 
     public function isOrgAdmin(?Organization $org = null): bool
     {
-        return $this->roleInOrganization($org) === 'org_admin';
+        $role = $this->roleInOrganization($org);
+        return $role === 'org_admin' || $role === 'super_admin';
     }
 
     public function isOperatorOrAbove(?Organization $org = null): bool
     {
-        return in_array($this->roleInOrganization($org), ['org_admin', 'operator'], true);
+        return in_array($this->roleInOrganization($org), ['super_admin', 'org_admin', 'operator'], true);
     }
 
     public function canManageBilling(): bool

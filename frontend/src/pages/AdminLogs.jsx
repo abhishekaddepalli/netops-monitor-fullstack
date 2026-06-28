@@ -12,6 +12,7 @@ export default function AdminLogs() {
   const [logs, setLogs] = useState(null);
   const [search, setSearch] = useState('');
   const [showManage, setShowManage] = useState(false);
+  const [selectedLog, setSelectedLog] = useState(null);
   const [retentionDays, setRetentionDays] = useState(30);
   const [submitting, setSubmitting] = useState(false);
 
@@ -64,6 +65,7 @@ export default function AdminLogs() {
                 <th>User</th>
                 <th>Organization</th>
                 <th>Timestamp</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
@@ -78,6 +80,9 @@ export default function AdminLogs() {
                   <td>{log.user ? `${log.user.name} (${log.user.email})` : 'System'}</td>
                   <td style={{ fontWeight: 500 }}>{log.organization?.name || '—'}</td>
                   <td style={{ color: 'var(--white-40)' }}>{formatDateTime(log.created_at)}</td>
+                  <td>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setSelectedLog(log)}>View Details</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -130,6 +135,64 @@ export default function AdminLogs() {
             }}>
               Delete ALL Logs
             </button>
+          </div>
+        </Modal>
+      )}
+
+      {selectedLog && (
+        <Modal title="Audit Log Details" onClose={() => setSelectedLog(null)} footer={
+          <button className="btn btn-ghost" onClick={() => setSelectedLog(null)}>Close</button>
+        }>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div className="panel" style={{ background: 'var(--navy-900)', padding: 16 }}>
+              <div style={{ color: 'var(--white-50)', fontSize: 13, marginBottom: 4 }}>Action</div>
+              <div style={{ fontWeight: 600 }}>{selectedLog.action}</div>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="panel" style={{ background: 'var(--navy-900)', padding: 16 }}>
+                <div style={{ color: 'var(--white-50)', fontSize: 13, marginBottom: 4 }}>User</div>
+                <div style={{ fontWeight: 500 }}>{selectedLog.user ? `${selectedLog.user.name} (${selectedLog.user.email})` : 'System'}</div>
+              </div>
+              <div className="panel" style={{ background: 'var(--navy-900)', padding: 16 }}>
+                <div style={{ color: 'var(--white-50)', fontSize: 13, marginBottom: 4 }}>Organization</div>
+                <div style={{ fontWeight: 500 }}>{selectedLog.organization?.name || '—'}</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="panel" style={{ background: 'var(--navy-900)', padding: 16 }}>
+                <div style={{ color: 'var(--white-50)', fontSize: 13, marginBottom: 4 }}>IP Address</div>
+                <div style={{ fontFamily: 'var(--font-mono)' }}>{selectedLog.ip_address}</div>
+              </div>
+              <div className="panel" style={{ background: 'var(--navy-900)', padding: 16 }}>
+                <div style={{ color: 'var(--white-50)', fontSize: 13, marginBottom: 4 }}>Timestamp</div>
+                <div>{formatDateTime(selectedLog.created_at)}</div>
+              </div>
+            </div>
+
+            <div className="panel" style={{ background: 'var(--navy-900)', padding: 16 }}>
+              <div style={{ color: 'var(--white-50)', fontSize: 13, marginBottom: 4 }}>User Agent</div>
+              <div style={{ fontSize: 13, color: 'var(--white-80)', wordBreak: 'break-all' }}>{selectedLog.user_agent}</div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="panel" style={{ background: 'var(--navy-900)', padding: 16 }}>
+                <div style={{ color: 'var(--white-50)', fontSize: 13, marginBottom: 4 }}>Subject Type</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{selectedLog.subject_type || '—'}</div>
+              </div>
+              <div className="panel" style={{ background: 'var(--navy-900)', padding: 16 }}>
+                <div style={{ color: 'var(--white-50)', fontSize: 13, marginBottom: 4 }}>Subject ID</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{selectedLog.subject_id || '—'}</div>
+              </div>
+            </div>
+
+            <div className="panel" style={{ background: 'var(--navy-900)', padding: 16 }}>
+              <div style={{ color: 'var(--white-50)', fontSize: 13, marginBottom: 4 }}>Changes (JSON)</div>
+              <pre style={{ background: 'var(--bg-1)', padding: 12, borderRadius: 8, overflowX: 'auto', fontSize: 13, color: 'var(--primary-300)', margin: 0 }}>
+                {JSON.stringify(selectedLog.changes, null, 2) || '{}'}
+              </pre>
+            </div>
           </div>
         </Modal>
       )}

@@ -82,39 +82,51 @@ class StatusPageController extends Controller
      */
     public function publicShow(Request $request, string $slug): JsonResponse
     {
-        $page = StatusPage::where('slug', $slug)
-            ->orWhere('custom_domain', $slug)
-            ->where('is_published', true)
-            ->with(['components.monitor', 'maintenanceWindows' => fn ($q) => $q->where('ends_at', '>=', now())])
-            ->firstOrFail();
+        try {
+            $page = StatusPage::where(function ($query) use ($slug) {
+                    $query->where('slug', $slug)->orWhere('custom_domain', $slug);
+                })
+                ->where('is_published', true)
+                ->with(['components.monitor', 'maintenanceWindows' => fn ($q) => $q->where('ends_at', '>=', now())])
+                ->firstOrFail();
 
-        if ($page->is_password_protected) {
-            $providedPassword = $request->header('X-Status-Page-Password');
-            if (! $providedPassword || ! Hash::check($providedPassword, $page->password_hash)) {
-                return response()->json(['message' => 'Password required.', 'password_protected' => true], 401);
+            if ($page->is_password_protected) {
+                $providedPassword = $request->header('X-Status-Page-Password');
+                if (! $providedPassword || ! Hash::check($providedPassword, $page->password_hash)) {
+                    return response()->json(['message' => 'Password required.', 'password_protected' => true], 401);
+                }
             }
+
+            $recentIncidents = Incident::whereIn('monitor_id', $page->components->pluck('monitor_id'))
+                ->where('show_on_status_page', true)
+                ->orderByDesc('started_at')
+                ->limit(10)
+                ->with('updates')
+                ->get();
+
+            return response()->json([
+                'name' => $page->name,
+                'logo_path' => $page->logo_path,
+                'primary_color' => $page->primary_color,
+                'overall_status' => $page->overallStatus(),
+                'components' => $page->components->map(fn ($c) => [
+                    'name' => $c->name,
+                    'status' => $c->monitor->status ?? 'pending',
+                    'group' => $c->group_name,
+                    'response_time_ms' => $c->monitor->last_response_time_ms ?? null,
+                    'last_checked_at' => $c->monitor->last_checked_at ?? null,
+                    'type' => $c->monitor->type ?? null,
+                ]),
+                'active_maintenance' => $page->maintenanceWindows,
+                'recent_incidents' => $recentIncidents,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error loading status page',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ], 500);
         }
-
-        $recentIncidents = Incident::whereIn('monitor_id', $page->components->pluck('monitor_id'))
-            ->where('show_on_status_page', true)
-            ->orderByDesc('started_at')
-            ->limit(10)
-            ->with('updates')
-            ->get();
-
-        return response()->json([
-            'name' => $page->name,
-            'logo_path' => $page->logo_path,
-            'primary_color' => $page->primary_color,
-            'overall_status' => $page->overallStatus(),
-            'components' => $page->components->map(fn ($c) => [
-                'name' => $c->name,
-                'status' => $c->monitor->status ?? 'pending',
-                'group' => $c->group_name,
-            ]),
-            'active_maintenance' => $page->maintenanceWindows,
-            'recent_incidents' => $recentIncidents,
-        ]);
     }
 
     private function authorizeOrgAccess(Request $request, StatusPage $page, bool $requireAdmin = false): void

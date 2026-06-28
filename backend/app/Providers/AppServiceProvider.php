@@ -16,6 +16,24 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Auth\Events\Login::class,
+            \App\Listeners\SendLoginAlert::class
+        );
+
+        $this->loadSmtpConfig();
+
+        \Illuminate\Support\Facades\Queue::before(function (\Illuminate\Queue\Events\JobProcessing $event) {
+            $this->loadSmtpConfig();
+        });
+
+        if ($this->app->environment('production')) {
+            URL::forceScheme('https');
+        }
+    }
+
+    private function loadSmtpConfig(): void
+    {
         try {
             if (\Illuminate\Support\Facades\Schema::hasTable('global_settings')) {
                 $host = GlobalSetting::getValue('smtp_host');
@@ -29,12 +47,8 @@ class AppServiceProvider extends ServiceProvider
                     Config::set('mail.from.name', 'NetOps Monitor');
                 }
             }
-        } catch (\Exception $e) {
-            // Database not set up yet (Setup Wizard phase)
-        }
-
-        if ($this->app->environment('production')) {
-            URL::forceScheme('https');
+        } catch (\Throwable $e) {
+            // Ignore DB errors during setup/migration
         }
     }
 }
