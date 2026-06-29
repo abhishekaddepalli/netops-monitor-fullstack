@@ -43,11 +43,13 @@ class NetworkMapController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $map = NetworkMap::create([
-            'organization_id' => $organization->id,
-            'name' => $request->name,
-            'description' => $request->description,
-        ]);
+        $map = DB::transaction(function () use ($organization, $request) {
+            return NetworkMap::create([
+                'organization_id' => $organization->id,
+                'name' => $request->name,
+                'description' => $request->description,
+            ]);
+        }, 5);
 
         return response()->json(['map' => $map, 'message' => 'Network map created successfully.']);
     }

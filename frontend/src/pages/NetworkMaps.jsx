@@ -119,10 +119,10 @@ export default function NetworkMaps() {
       {isCreating && (
         <Modal title="Create Network Map" onClose={() => setIsCreating(false)}>
           <form onSubmit={handleCreate}>
-            <div style={{ padding: 24 }}>
-              <label className="input-label">Map Name</label>
+            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label className="input-label" style={{ marginBottom: 0 }}>Map Name</label>
               <input 
-                className="input"
+                className="w-full bg-slate-800 border border-slate-700 rounded-md p-2 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
                 placeholder="e.g. Core Network Datacenter 1" 
                 value={newMapName} 
                 onChange={(e) => setNewMapName(e.target.value)}
