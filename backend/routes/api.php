@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\DiscoveryJobController;
 use App\Http\Controllers\Api\HeartbeatController;
 use App\Http\Controllers\Api\IncidentController;
 use App\Http\Controllers\Api\MonitorController;
+use App\Http\Controllers\Api\NetworkMapController;
 use App\Http\Controllers\Api\StatusPageController;
 use App\Http\Controllers\Api\TeamController;
 use Illuminate\Support\Facades\Route;
@@ -146,6 +147,13 @@ Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
         Route::get('/api-keys', [ApiKeyController::class, 'index']);
         Route::post('/api-keys', [ApiKeyController::class, 'store'])->middleware('org.role:org_admin');
         Route::delete('/api-keys/{apiKey}', [ApiKeyController::class, 'destroy'])->middleware('org.role:org_admin');
+        
+        // ── Network Maps ───────────────────────────────────────────
+        Route::get('/network-maps', [NetworkMapController::class, 'index']);
+        Route::get('/network-maps/{networkMap}', [NetworkMapController::class, 'show']);
+        Route::post('/network-maps', [NetworkMapController::class, 'store'])->middleware('org.role:org_admin,operator');
+        Route::put('/network-maps/{networkMap}', [NetworkMapController::class, 'update'])->middleware('org.role:org_admin,operator');
+        Route::delete('/network-maps/{networkMap}', [NetworkMapController::class, 'destroy'])->middleware('org.role:org_admin');
     });
 });
 

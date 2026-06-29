@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "puppeteer": "^25.2.1",
+    "source-map": "^0.7.6",
+    "sqlite3": "^6.0.1",
+    "ssh2": "^1.17.0"
+  }
+}

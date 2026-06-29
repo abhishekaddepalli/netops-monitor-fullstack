@@ -22,6 +22,8 @@ import Team from './pages/Team';
 import AlertChannels from './pages/AlertChannels';
 import Billing from './pages/Billing';
 import Settings from './pages/Settings';
+import NetworkMaps from './pages/NetworkMaps';
+import NetworkMapEditor from './pages/NetworkMapEditor';
 import AdminOrganizations from './pages/AdminOrganizations';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminPlans from './pages/AdminPlans';
@@ -46,6 +48,7 @@ const TITLES = {
   '/team': 'Team Management',
   '/api-docs': 'API Documentation',
   '/alert-channels': 'Alert Channels',
+  '/network-maps': 'Network Maps',
   '/billing': 'Billing & Plans',
   '/settings': 'Settings',
   '/admin': 'Super Admin Dashboard',
@@ -96,6 +99,8 @@ export default function App() {
                   <Route path="/admin/alert-channels" element={<AdminGlobalAlertChannels />} />
                   <Route path="/team" element={<Team />} />
                   <Route path="/alert-channels" element={<AlertChannels />} />
+                  <Route path="/network-maps" element={<NetworkMaps />} />
+                  <Route path="/network-maps/:id" element={<NetworkMapEditor />} />
                   <Route path="/api-docs" element={<ApiDocs />} />
                   <Route path="/billing" element={<Billing />} />
                   <Route path="/settings" element={<Settings />} />

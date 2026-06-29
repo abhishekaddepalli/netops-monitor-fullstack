@@ -10,6 +10,7 @@ import { useTheme } from '../../context/ThemeContext';
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/monitors', icon: Activity, label: 'Monitors' },
+  { to: '/network-maps', icon: Network, label: 'Network Maps' },
   { to: '/incidents', icon: AlertTriangle, label: 'Incidents' },
   { to: '/status-pages', icon: Globe2, label: 'Status Pages' },
   { to: '/tools', icon: Terminal, label: 'Diagnostic Tools' },
