@@ -386,7 +386,7 @@ export default function NetworkMapEditor() {
     setIsSaving(true);
     try {
       const payloadNodes = nodes.map(n => ({
-        id: n.id.toString().includes('node_') ? undefined : n.id, 
+        id: n.id, 
         monitor_id: n.data.monitor_id, 
         label: n.data.label, 
         x_pos: n.position.x, 

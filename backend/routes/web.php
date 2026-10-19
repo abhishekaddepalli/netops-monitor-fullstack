@@ -7,17 +7,6 @@ use Illuminate\Support\Facades\Route;
 | build). This file exists only because Laravel's routing config
 | requires it — kept minimal on purpose.
 */
-use App\Http\Controllers\SetupController;
-
-// Setup Wizard Routes
-Route::prefix('setup')->group(function () {
-    Route::get('/', [SetupController::class, 'requirements']);
-    Route::get('/database', [SetupController::class, 'database']);
-    Route::post('/database', [SetupController::class, 'saveDatabase']);
-    Route::get('/admin', [SetupController::class, 'admin']);
-    Route::post('/admin', [SetupController::class, 'saveAdmin']);
-    Route::get('/finish', [SetupController::class, 'finish']);
-});
 
 // Fallback route: Serves the React SPA if built and copied into the public/ directory.
 // If index.html doesn't exist, it falls back to a JSON API status message.

@@ -99,11 +99,11 @@ export default function Monitors() {
   }, {});
 
   function handleExport() {
-    window.open('http://127.0.0.1:8000/api/v1/monitors/export', '_blank');
+    window.open('/api/v1/monitors/export', '_blank');
   }
 
   function handleTemplate() {
-    window.open('http://127.0.0.1:8000/api/v1/monitors/import-template', '_blank');
+    window.open('/api/v1/monitors/import-template', '_blank');
   }
 
   function handleImport(e) {

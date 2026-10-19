@@ -529,8 +529,11 @@ class DiagnosticToolController extends Controller
         $validator = Validator::make($request->all(), [
             'target' => 'required|ip',
             'version' => 'required|in:1,2c,3',
-            'community' => 'required_if:version,1,2c|string',
-            'interface_id' => 'required|integer'
+            'community' => 'required_if:version,1,2c|nullable|string|max:128',
+            'interface_id' => 'required|integer|min:1',
+            'user' => 'nullable|string|max:128',
+            'auth_pass' => 'nullable|string|max:128',
+            'priv_pass' => 'nullable|string|max:128',
         ]);
 
         if ($validator->fails()) {
@@ -539,24 +542,52 @@ class DiagnosticToolController extends Controller
 
         $target = $request->input('target');
         $version = $request->input('version');
-        $community = escapeshellarg($request->input('community', 'public'));
-        $interfaceId = intval($request->input('interface_id'));
+        $interfaceId = (int) $request->input('interface_id');
 
         $inOid = "1.3.6.1.2.1.2.2.1.10.{$interfaceId}";
         $outOid = "1.3.6.1.2.1.2.2.1.16.{$interfaceId}";
 
-        $cmdIn = "snmpget -v{$version} -c {$community} -Oqv {$target} {$inOid} 2>&1";
-        $cmdOut = "snmpget -v{$version} -c {$community} -Oqv {$target} {$outOid} 2>&1";
-
-        $outputIn = shell_exec($cmdIn);
-        $outputOut = shell_exec($cmdOut);
-
-        $inBytes = intval(trim($outputIn));
-        $outBytes = intval(trim($outputOut));
-
-        if (strpos($outputIn, 'Timeout') !== false || strpos($outputOut, 'Timeout') !== false) {
-            return response()->json(['success' => false, 'error' => 'SNMP Timeout'], 504);
+        $args = ['snmpget', '-v', $version];
+        if ($version === '3') {
+            $user = $request->input('user', '');
+            $auth = $request->input('auth_pass', '');
+            $priv = $request->input('priv_pass', '');
+            $args[] = '-u'; $args[] = $user;
+            if (!empty($auth)) {
+                $args[] = '-a'; $args[] = 'SHA';
+                $args[] = '-A'; $args[] = $auth;
+                $args[] = '-l'; $args[] = empty($priv) ? 'authNoPriv' : 'authPriv';
+            } else {
+                $args[] = '-l'; $args[] = 'noAuthNoPriv';
+            }
+            if (!empty($priv)) {
+                $args[] = '-x'; $args[] = 'AES';
+                $args[] = '-X'; $args[] = $priv;
+            }
+        } else {
+            $community = $request->input('community', 'public');
+            $args[] = '-c'; $args[] = $community;
         }
+
+        $args = array_merge($args, [
+            '-O', 'qv', '-t', '5', '-r', '1', $target, $inOid, $outOid
+        ]);
+
+        $process = new \Symfony\Component\Process\Process($args);
+        $process->setTimeout(10);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $err = trim($process->getErrorOutput());
+            if (stripos($err, 'Timeout') !== false || stripos($process->getOutput(), 'Timeout') !== false) {
+                return response()->json(['success' => false, 'error' => 'SNMP Timeout'], 504);
+            }
+            return response()->json(['success' => false, 'error' => 'SNMP query failed'], 500);
+        }
+
+        $output = array_values(array_filter(array_map('trim', explode("\n", trim($process->getOutput()))), fn($l) => $l !== ''));
+        $inBytes = isset($output[0]) && is_numeric($output[0]) ? (int)$output[0] : 0;
+        $outBytes = isset($output[1]) && is_numeric($output[1]) ? (int)$output[1] : 0;
 
         return response()->json([
             'success' => true,

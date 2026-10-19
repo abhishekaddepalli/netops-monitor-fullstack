@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Route;
 | Public routes — no auth
 |--------------------------------------------------------------------------
 */
-Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 Route::get('/plans', [\App\Http\Controllers\Api\PlanController::class, 'index']);
 Route::get('/global-settings', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'publicShow']);
@@ -43,14 +43,6 @@ Route::get('/status-pages/public/{slug}', [StatusPageController::class, 'publicS
 | Authenticated routes — Sanctum token OR X-API-Key header
 |--------------------------------------------------------------------------
 */
-Route::get('/debug/{id}', function ($id) {
-    $monitor = App\Models\Monitor::find($id);
-    $checks = $monitor->checks()->latest('checked_at')->take(5)->get();
-    return response()->json([
-        'monitor' => $monitor,
-        'checks' => $checks,
-    ]);
-});
 
 Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
 
@@ -68,12 +60,6 @@ Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
         Route::get('/billing/current', [\App\Http\Controllers\Api\BillingController::class, 'current'])->middleware('org.role:org_admin');
 
         // ── Diagnostic Tools ──────────────────────────────────────────
-        Route::post('/tools/ping', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'ping']);
-        Route::post('/tools/dns', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'dns']);
-        Route::post('/tools/port', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'port']);
-        Route::post('/tools/ssl', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'ssl']);
-        Route::post('/tools/whois', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'whois']);
-        Route::post('/tools/traceroute', [\App\Http\Controllers\Api\DiagnosticToolController::class, 'traceroute']);
         Route::post('/tools/ping', [DiagnosticToolController::class, 'ping']);
         Route::post('/tools/dns', [DiagnosticToolController::class, 'dns']);
         Route::post('/tools/port', [DiagnosticToolController::class, 'port']);
@@ -151,10 +137,10 @@ Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
         
         // ── Network Maps ───────────────────────────────────────────
         Route::get('/network-maps', [NetworkMapController::class, 'index']);
-        Route::get('/network-maps/{networkMap}', [NetworkMapController::class, 'show']);
+        Route::get('/network-maps/{id}', [NetworkMapController::class, 'show']);
         Route::post('/network-maps', [NetworkMapController::class, 'store'])->middleware('org.role:org_admin,operator');
-        Route::put('/network-maps/{networkMap}', [NetworkMapController::class, 'update'])->middleware('org.role:org_admin,operator');
-        Route::delete('/network-maps/{networkMap}', [NetworkMapController::class, 'destroy'])->middleware('org.role:org_admin');
+        Route::put('/network-maps/{id}', [NetworkMapController::class, 'update'])->middleware('org.role:org_admin,operator');
+        Route::delete('/network-maps/{id}', [NetworkMapController::class, 'destroy'])->middleware('org.role:org_admin');
     });
 });
 

@@ -96,6 +96,11 @@ class Organization extends Model
         return $this->hasMany(ApiKey::class);
     }
 
+    public function networkMaps(): HasMany
+    {
+        return $this->hasMany(NetworkMap::class);
+    }
+
     public function subscription(): HasOne
     {
         return $this->hasOne(Subscription::class)->latestOfMany();

@@ -11,11 +11,13 @@ class Plan extends Model
         'status_page_limit', 'price_inr_monthly', 'price_usd_monthly', 'features', 'is_active',
         'price_inr_half_yearly', 'price_inr_yearly', 'price_inr_daily',
         'alert_limit_monthly', 'api_request_limit_monthly', 'integration_limit',
+        'is_public',
     ];
 
     protected $casts = [
         'features' => 'array',
         'is_active' => 'boolean',
+        'is_public' => 'boolean',
     ];
 
     public function hasFeature(string $feature): bool

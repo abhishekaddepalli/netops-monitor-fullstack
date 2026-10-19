@@ -8,17 +8,33 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('plans', function (Blueprint $table) {
-            $table->unsignedInteger('price_inr_daily')->default(0)->after('price_inr_monthly');
-            $table->unsignedInteger('price_inr_half_yearly')->default(0)->after('price_inr_daily');
-            $table->unsignedInteger('price_inr_yearly')->default(0)->after('price_inr_half_yearly');
-        });
+        if (Schema::hasTable('plans')) {
+            Schema::table('plans', function (Blueprint $table) {
+                if (!Schema::hasColumn('plans', 'price_inr_daily')) {
+                    $table->unsignedInteger('price_inr_daily')->default(0)->after('price_inr_monthly');
+                }
+                if (!Schema::hasColumn('plans', 'price_inr_half_yearly')) {
+                    $table->unsignedInteger('price_inr_half_yearly')->default(0)->after('price_inr_daily');
+                }
+                if (!Schema::hasColumn('plans', 'price_inr_yearly')) {
+                    $table->unsignedInteger('price_inr_yearly')->default(0)->after('price_inr_half_yearly');
+                }
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('plans', function (Blueprint $table) {
-            $table->dropColumn(['price_inr_daily', 'price_inr_half_yearly', 'price_inr_yearly']);
-        });
+        if (Schema::hasTable('plans')) {
+            Schema::table('plans', function (Blueprint $table) {
+                $columns = [];
+                if (Schema::hasColumn('plans', 'price_inr_daily')) $columns[] = 'price_inr_daily';
+                if (Schema::hasColumn('plans', 'price_inr_half_yearly')) $columns[] = 'price_inr_half_yearly';
+                if (Schema::hasColumn('plans', 'price_inr_yearly')) $columns[] = 'price_inr_yearly';
+                if (!empty($columns)) {
+                    $table->dropColumn($columns);
+                }
+            });
+        }
     }
 };
