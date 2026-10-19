@@ -39,6 +39,7 @@ class AuthenticateApiKey
         $apiKey->update(['last_used_at' => now()]);
 
         $request->attributes->set('organization', $apiKey->organization);
+        $request->attributes->set('org_id', $apiKey->organization_id);
         $request->attributes->set('api_key', $apiKey);
         $request->attributes->set('authenticated_via', 'api_key');
 

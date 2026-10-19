@@ -186,6 +186,7 @@ export default function NetworkDiscoveryModal({ isOpen, onClose, onAdded }) {
     if (toAdd.length === 0) return;
     setAdding(true);
     let successCount = 0;
+    const createdMonitors = [];
     for (const host of toAdd) {
       try {
         const payload = {
@@ -201,14 +202,19 @@ export default function NetworkDiscoveryModal({ isOpen, onClose, onAdded }) {
             priv_pass: version === '3' ? privPass : undefined
           } : {}
         };
-        await monitorsApi.create(payload);
+        const res = await monitorsApi.create(payload);
+        if (res.data) {
+           createdMonitors.push(res.data);
+        }
         successCount++;
-      } catch (e) {}
+      } catch (e) {
+        toast.error(`Failed to add ${host.ip}: ${apiErrorMessage(e)}`);
+      }
     }
     setAdding(false);
     if (successCount > 0) {
       toast.success(`Added ${successCount} monitors.`);
-      onAdded();
+      onAdded(createdMonitors);
       onClose();
     }
   }

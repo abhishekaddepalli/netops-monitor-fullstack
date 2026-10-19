@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toolsApi } from '../api/tools';
 import { Activity, Globe, Shield, Terminal, Zap, Search, Info, MapPin, Download, AlertTriangle, ShieldAlert, Lock } from 'lucide-react';
 import { apiErrorMessage } from '../api/client';
@@ -22,6 +23,7 @@ const TOOLS = [
 export default function NetworkTools() {
   const { user } = useAuth();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
   const allowedTools = user?.organization?.effective_features?.allowed_tools || ['ping', 'dns'];
 
   const [activeTool, setActiveTool] = useState('ping');
@@ -30,6 +32,18 @@ export default function NetworkTools() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const pTarget = searchParams.get('target');
+    const pTool = searchParams.get('tool');
+    
+    if (pTarget) {
+      setTarget(pTarget);
+    }
+    if (pTool && TOOLS.some(t => t.id === pTool) && allowedTools.includes(pTool)) {
+      setActiveTool(pTool);
+    }
+  }, [searchParams, allowedTools]);
 
   const activeToolDef = TOOLS.find(t => t.id === activeTool);
 

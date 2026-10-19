@@ -16,6 +16,7 @@ class AlertSenderFactory
         'whatsapp' => WhatsAppAlertSender::class,
         'sms' => SmsAlertSender::class,
         'push' => PushAlertSender::class,
+        'wirepusher' => WirePusherAlertSender::class,
     ];
 
     public static function make(string $type): AlertSenderInterface

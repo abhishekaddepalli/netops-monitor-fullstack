@@ -11,14 +11,21 @@ class NetworkMapLink extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
+        'id',
         'network_map_id',
         'source_node_id',
         'target_node_id',
+        'snmp_interface_id',
+        'show_traffic',
         'monitor_id',
         'label',
         'interface_name',
         'color',
         'style',
+    ];
+
+    protected $casts = [
+        'show_traffic' => 'boolean',
     ];
 
     public function networkMap()

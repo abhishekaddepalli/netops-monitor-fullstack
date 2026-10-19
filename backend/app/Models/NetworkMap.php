@@ -15,6 +15,8 @@ class NetworkMap extends Model
         'name',
         'description',
         'background_image',
+        'background_color',
+        'grid_size',
     ];
 
     public function organization()

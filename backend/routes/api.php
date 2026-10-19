@@ -86,6 +86,7 @@ Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
         Route::post('/tools/ipreputation', [DiagnosticToolController::class, 'ipreputation']);
         Route::post('/tools/snmp/test', [DiagnosticToolController::class, 'snmpTest']);
         Route::post('/tools/snmp-routes', [DiagnosticToolController::class, 'snmpRoutes']);
+        Route::post('/tools/snmp-traffic', [DiagnosticToolController::class, 'snmpInterfaceTraffic']);
         // Network Discovery
         Route::post('/tools/network-discovery', [DiagnosticToolController::class, 'networkDiscovery']);
         Route::get('/discovery-jobs', [DiscoveryJobController::class, 'index']);

@@ -1,31 +1,43 @@
 const { Client } = require('ssh2');
 const fs = require('fs');
+const path = require('path');
 
 const conn = new Client();
 conn.on('ready', () => {
+  console.log('Client :: ready');
   conn.sftp((err, sftp) => {
     if (err) throw err;
-    const toUpload = [
-      'backend/routes/api.php',
-      'backend/app/Http/Controllers/Api/Admin/OrganizationController.php',
-      'backend/app/Models/Organization.php',
-      'backend/app/Services/Monitors/SnmpChecker.php',
-      'backend/app/Http/Controllers/Api/DiagnosticToolController.php'
+    
+    const filesToUpload = [
+      {
+        local: path.join(__dirname, 'backend', 'app', 'Services', 'Alerts', 'WirePusherAlertSender.php'),
+        remote: '/root/netops-monitor-fullstack/backend/app/Services/Alerts/WirePusherAlertSender.php'
+      },
+      {
+        local: path.join(__dirname, 'backend', 'app', 'Services', 'Alerts', 'AlertSenderFactory.php'),
+        remote: '/root/netops-monitor-fullstack/backend/app/Services/Alerts/AlertSenderFactory.php'
+      }
     ];
+    
     let uploaded = 0;
-    toUpload.forEach(file => {
-      sftp.fastPut(file, `/root/netops-monitor-fullstack/${file}`, (err) => {
+    
+    filesToUpload.forEach(f => {
+      console.log('Uploading ' + f.local);
+      sftp.fastPut(f.local, f.remote, (err) => {
         if (err) throw err;
-        console.log(`Uploaded ${file}`);
+        console.log('Uploaded ' + f.remote);
         uploaded++;
-        if (uploaded === toUpload.length) {
-          conn.exec('cd /root/netops-monitor-fullstack/backend && php artisan migrate --force && php artisan queue:restart', (err, stream) => {
+        if (uploaded === filesToUpload.length) {
+          console.log('Restarting queue worker');
+          conn.exec('cd /root/netops-monitor-fullstack/backend && php artisan queue:restart', (err, stream) => {
             if (err) throw err;
-            stream.on('data', (d) => process.stdout.write(d.toString()));
-            stream.stderr.on('data', (d) => process.stderr.write(d.toString()));
-            stream.on('close', () => {
-              console.log('Migrated and Queue restarted');
+            stream.on('close', (code, signal) => {
+              console.log('Stream :: close :: code: ' + code + ', signal: ' + signal);
               conn.end();
+            }).on('data', (data) => {
+              console.log('STDOUT: ' + data);
+            }).stderr.on('data', (data) => {
+              console.log('STDERR: ' + data);
             });
           });
         }

@@ -15,8 +15,16 @@ class SlackAlertSender implements AlertSenderInterface
         if (! $webhookUrl) {
             throw new \RuntimeException('Slack channel has no webhook URL configured.');
         }
+        $message = TemplateParser::parse('slack', $incident, $event);
 
-            ]],
+        $color = $event === 'down' ? '#ef4444' : '#22c55e';
+        $payload = [
+            'attachments' => [
+                [
+                    'color' => $color,
+                    'text' => $message,
+                ],
+            ],
         ];
 
         $client = new Client(['timeout' => 10]);

@@ -62,6 +62,8 @@ class NetworkMapController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
+            'background_color' => 'nullable|string',
+            'grid_size' => 'nullable|integer',
             'nodes' => 'sometimes|array',
             'links' => 'sometimes|array',
         ]);
@@ -73,10 +75,14 @@ class NetworkMapController extends Controller
         DB::beginTransaction();
         try {
             if ($request->has('name')) {
-                $map->update([
+                $updateData = [
                     'name' => $request->name,
                     'description' => $request->description ?? $map->description,
-                ]);
+                ];
+                if ($request->has('background_color')) $updateData['background_color'] = $request->background_color;
+                if ($request->has('background_image')) $updateData['background_image'] = $request->background_image;
+                if ($request->has('grid_size')) $updateData['grid_size'] = $request->grid_size;
+                $map->update($updateData);
             }
 
             if ($request->has('nodes')) {
@@ -95,6 +101,11 @@ class NetworkMapController extends Controller
                         'x_pos' => $nodeData['x_pos'] ?? 0,
                         'y_pos' => $nodeData['y_pos'] ?? 0,
                         'icon_type' => $nodeData['icon_type'] ?? 'server',
+                        'shape' => $nodeData['shape'] ?? 'rounded_rect',
+                        'color' => $nodeData['color'] ?? null,
+                        'width' => $nodeData['width'] ?? 170,
+                        'height' => $nodeData['height'] ?? 0,
+                        'submap_id' => $nodeData['submap_id'] ?? null,
                     ]);
                 }
 
@@ -105,6 +116,8 @@ class NetworkMapController extends Controller
                             'network_map_id' => $map->id,
                             'source_node_id' => $linkData['source_node_id'],
                             'target_node_id' => $linkData['target_node_id'],
+                            'snmp_interface_id' => $linkData['snmp_interface_id'] ?? null,
+                            'show_traffic' => $linkData['show_traffic'] ?? false,
                             'monitor_id' => $linkData['monitor_id'] ?? null,
                             'label' => $linkData['label'] ?? null,
                             'interface_name' => $linkData['interface_name'] ?? null,

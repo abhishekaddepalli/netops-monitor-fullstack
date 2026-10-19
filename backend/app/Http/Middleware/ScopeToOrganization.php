@@ -43,6 +43,7 @@ class ScopeToOrganization
         }
 
         $request->attributes->set('organization', $org);
+        $request->attributes->set('org_id', $org->id);
 
         return $next($request);
     }

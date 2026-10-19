@@ -11,12 +11,18 @@ class NetworkMapNode extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
+        'id',
         'network_map_id',
         'monitor_id',
         'label',
         'x_pos',
         'y_pos',
         'icon_type',
+        'shape',
+        'color',
+        'width',
+        'height',
+        'submap_id',
     ];
 
     public function networkMap()

@@ -6,6 +6,7 @@ import HealthStrip from './HealthStrip';
 import { dashboardApi } from '../../api/dashboard';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import CommandPalette from '../ui/CommandPalette';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -136,6 +137,7 @@ export default function AppLayout({ title }) {
           </div>
         </div>
       </div>
+      <CommandPalette />
     </>
   );
 }

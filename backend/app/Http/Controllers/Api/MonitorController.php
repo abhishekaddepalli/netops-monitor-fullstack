@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Monitor;
+use App\Models\Organization;
 use App\Models\Plan;
 use App\Jobs\RunMonitorCheckJob;
 use App\Services\Monitors\MonitorCheckerFactory;
@@ -93,16 +94,29 @@ class MonitorController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $orgId = $request->attributes->get('org_id');
-        $org = Organization::find($orgId);
+        $org = $request->attributes->get('organization')
+            ?? ($request->user() ? $request->user()->organization : null);
+
+        if (!$org && $request->attributes->has('org_id')) {
+            $org = Organization::find($request->attributes->get('org_id'));
+        }
+
+        if (!$org) {
+            return response()->json(['message' => 'Organization not found.'], 403);
+        }
         
         $features = $org->effective_features;
-        if ($org->activeMonitorCount() >= $features['max_monitors']) {
+        if (!empty($features['max_monitors']) && $org->activeMonitorCount() >= $features['max_monitors']) {
             return response()->json(['message' => 'Monitor limit reached for your plan. Please upgrade.'], 403);
         }
         
-        if (!in_array($request->type, $features['allowed_monitor_types'])) {
-            return response()->json(['message' => 'Monitor type not allowed on your current plan. Please upgrade.'], 403);
+        $requestedType = $request->input('type');
+        $allowedTypes = $features['allowed_monitor_types'] ?? [];
+        if (!empty($allowedTypes)) {
+            $typeToCheck = ($requestedType === 'tcp_port' && in_array('port', $allowedTypes)) ? 'port' : $requestedType;
+            if (!in_array($typeToCheck, $allowedTypes) && !in_array($requestedType, $allowedTypes)) {
+                return response()->json(['message' => 'Monitor type not allowed on your current plan. Please upgrade.'], 403);
+            }
         }
 
         $target = $request->input('target');
@@ -110,13 +124,15 @@ class MonitorController extends Controller
             $request->merge(['target' => 'https://' . $target]);
         }
 
+        $allowedIntervals = config('monitoring.intervals') ?: [30, 60, 180, 300, 600, 900];
+
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'in:'.implode(',', MonitorCheckerFactory::supportedTypes())],
             'target' => ['required', 'string', 'max:2048'],
             'port' => ['nullable', 'integer', 'min:1', 'max:65535'],
             'config' => ['nullable', 'array'],
-            'check_interval_seconds' => ['required', 'integer', 'in:'.implode(',', config('monitoring.intervals'))],
+            'check_interval_seconds' => ['required', 'integer', 'in:'.implode(',', $allowedIntervals)],
             'timeout_seconds' => ['nullable', 'integer', 'min:1', 'max:120'],
             'team_id' => ['nullable', 'exists:teams,id'],
             'escalation_policy_id' => ['nullable', 'exists:escalation_policies,id'],
@@ -129,7 +145,7 @@ class MonitorController extends Controller
 
         // Plan-based interval floor — e.g. Free plan can't use 30s checks.
         $plan = Plan::where('key', $org->plan)->first();
-        if ($plan && $request->integer('check_interval_seconds') < $plan->check_interval_min_seconds) {
+        if ($plan && $plan->check_interval_min_seconds && $request->integer('check_interval_seconds') < $plan->check_interval_min_seconds) {
             return response()->json([
                 'message' => "Your plan's fastest allowed check interval is {$plan->check_interval_min_seconds} seconds. Upgrade for faster checks.",
             ], 422);
@@ -148,8 +164,11 @@ class MonitorController extends Controller
 
         AuditLog::record('monitor.created', $monitor, ['name' => $monitor->name, 'type' => $monitor->type], $org);
 
-        // Dispatch a check immediately so it doesn't stay 'pending' until the next cron minute
-        RunMonitorCheckJob::dispatch($monitor->id)->onQueue(config('monitoring.queue_fast', 'monitor-checks-fast'));
+        // Dispatch initial check immediately so user doesn't wait, but do it AFTER the HTTP response is sent 
+        // to prevent unreachable IPs from causing a PHP maximum execution time fatal error (500) during the API request
+        dispatch(new RunMonitorCheckJob($monitor->id))
+            ->onQueue(config('monitoring.queue_fast', 'monitor-checks-fast'))
+            ->afterResponse();
 
         return response()->json($monitor, 201);
     }

@@ -15,6 +15,7 @@ const CHANNEL_TYPES = [
   { key: 'webhook', label: 'Webhook', field: 'url', placeholder: 'https://your-endpoint.com/alerts' },
   { key: 'whatsapp', label: 'WhatsApp', field: 'to', placeholder: '+91XXXXXXXXXX' },
   { key: 'sms', label: 'SMS', field: 'to', placeholder: '91XXXXXXXXXX' },
+  { key: 'wirepusher', label: 'WirePusher', field: 'device_id', placeholder: 'Enter Device ID (e.g. j9df82)' },
 ];
 
 export default function AdminGlobalAlertChannels() {

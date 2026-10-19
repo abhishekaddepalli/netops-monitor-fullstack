@@ -13,6 +13,20 @@ import { formatMs, formatUptime, timeAgo } from '../utils/format';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { apiErrorMessage } from '../api/client';
+import { motion } from 'framer-motion';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+};
 
 function MiniUptimeGraph({ checks }) {
   if (!checks || checks.length === 0) return <span style={{ color: 'var(--white-40)', fontSize: 12 }}>No data</span>;
@@ -158,8 +172,8 @@ export default function Dashboard() {
   };
 
   return (
-    <>
-      <div className="kpi-grid">
+    <motion.div variants={containerVariants} initial="hidden" animate="show" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <motion.div className="kpi-grid" variants={itemVariants}>
         <KpiCard
           label="Overall Uptime"
           value={summary ? formatUptime(summary.overall_uptime_pct) : null}
@@ -196,9 +210,9 @@ export default function Dashboard() {
           delta={summary?.ssl_expiring_soon?.[0] ? `Next: ${summary.ssl_expiring_soon[0].monitor_name} in ${summary.ssl_expiring_soon[0].days_remaining}d` : 'None expiring soon'}
           deltaClass="delta-neutral"
         />
-      </div>
+      </motion.div>
 
-      <div className="row-2">
+      <motion.div className="row-2" variants={itemVariants}>
         <div className="panel">
           <div className="panel-head">
             <div>
@@ -254,9 +268,9 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      <div className="panel">
+      <motion.div className="panel" variants={itemVariants}>
         <div className="panel-head">
           <div>
             <div className="panel-title">Monitors</div>
@@ -325,8 +339,8 @@ export default function Dashboard() {
             </tbody>
           </table>
         )}
-      </div>
-    </>
+      </motion.div>
+    </motion.div>
   );
 }
 

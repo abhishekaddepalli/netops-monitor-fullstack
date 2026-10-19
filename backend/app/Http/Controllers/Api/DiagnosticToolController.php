@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\JsonResponse;
 use App\Models\Organization;
+use Illuminate\Support\Facades\Validator;
 use Exception;
 
 class DiagnosticToolController extends Controller
@@ -30,10 +31,11 @@ class DiagnosticToolController extends Controller
 
     private function checkAccess($toolName, $orgId)
     {
+        if (!$orgId) return;
         $org = Organization::find($orgId);
         if ($org) {
             $features = $org->effective_features;
-            if (!in_array($toolName, $features['allowed_tools'])) {
+            if (!empty($features['allowed_tools']) && !in_array($toolName, $features['allowed_tools'])) {
                 abort(403, "This tool ({$toolName}) is not included in your current plan. Please upgrade.");
             }
         }
@@ -513,6 +515,56 @@ class DiagnosticToolController extends Controller
         return response()->json([
             'seed_ip' => $target,
             'discovered' => $discovered
+        ]);
+    }
+
+    public function snmpInterfaceTraffic(Request $request)
+    {
+        $organization = $request->attributes->get('organization') 
+            ?? Organization::find($request->attributes->get('org_id'));
+        if ($organization) {
+            $this->checkAccess('network-discovery', $organization->id);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'target' => 'required|ip',
+            'version' => 'required|in:1,2c,3',
+            'community' => 'required_if:version,1,2c|string',
+            'interface_id' => 'required|integer'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $target = $request->input('target');
+        $version = $request->input('version');
+        $community = escapeshellarg($request->input('community', 'public'));
+        $interfaceId = intval($request->input('interface_id'));
+
+        $inOid = "1.3.6.1.2.1.2.2.1.10.{$interfaceId}";
+        $outOid = "1.3.6.1.2.1.2.2.1.16.{$interfaceId}";
+
+        $cmdIn = "snmpget -v{$version} -c {$community} -Oqv {$target} {$inOid} 2>&1";
+        $cmdOut = "snmpget -v{$version} -c {$community} -Oqv {$target} {$outOid} 2>&1";
+
+        $outputIn = shell_exec($cmdIn);
+        $outputOut = shell_exec($cmdOut);
+
+        $inBytes = intval(trim($outputIn));
+        $outBytes = intval(trim($outputOut));
+
+        if (strpos($outputIn, 'Timeout') !== false || strpos($outputOut, 'Timeout') !== false) {
+            return response()->json(['success' => false, 'error' => 'SNMP Timeout'], 504);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'in_bytes' => $inBytes,
+                'out_bytes' => $outBytes,
+                'timestamp' => microtime(true)
+            ]
         ]);
     }
 }

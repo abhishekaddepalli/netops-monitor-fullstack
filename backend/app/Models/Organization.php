@@ -131,17 +131,24 @@ class Organization extends Model
                     $planAllowedMonitorTypes[] = substr($f, 8);
                 }
             }
-        } else {
-            $planAllowedTools = ['ping', 'dns', 'port', 'ssl', 'whois', 'traceroute', 'ipinfo', 'headers', 'blacklist', 'ipreputation', 'snmp', 'network-discovery'];
-            $planAllowedMonitorTypes = ['ping', 'http', 'keyword', 'snmp', 'port', 'dns', 'ssl'];
         }
 
-        $maxMonitors = $custom['max_monitors'] ?? ($plan ? $plan->max_monitors : $this->monitor_limit);
+        $defaultTools = ['ping', 'dns', 'port', 'ssl', 'whois', 'traceroute', 'ipinfo', 'headers', 'blacklist', 'ipreputation', 'snmp', 'snmp-test', 'snmp-routes', 'snmp-traffic', 'network-discovery'];
+        $defaultMonitorTypes = ['ping', 'http', 'keyword', 'snmp', 'port', 'tcp_port', 'dns', 'ssl', 'api', 'heartbeat', 'server_agent'];
+
+        if (empty($planAllowedTools)) {
+            $planAllowedTools = $defaultTools;
+        }
+        if (empty($planAllowedMonitorTypes)) {
+            $planAllowedMonitorTypes = $defaultMonitorTypes;
+        }
+
+        $maxMonitors = $custom['max_monitors'] ?? ($plan ? $plan->max_monitors : ($this->monitor_limit ?? 50));
         $allowedMonitorTypes = $custom['allowed_monitor_types'] ?? $planAllowedMonitorTypes;
         $allowedTools = $custom['allowed_tools'] ?? $planAllowedTools;
         
         return [
-            'max_monitors' => $maxMonitors,
+            'max_monitors' => $maxMonitors ?? 50,
             'allowed_monitor_types' => $allowedMonitorTypes,
             'allowed_tools' => $allowedTools,
         ];

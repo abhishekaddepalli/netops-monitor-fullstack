@@ -83,15 +83,24 @@ class SnmpChecker implements MonitorCheckerInterface
         
         try {
             $process->run();
+        } catch (\Symfony\Component\Process\Exception\ProcessTimedOutException $e) {
+            return CheckResult::down("SNMP request timed out after {$timeout} seconds.", null, null);
         } catch (\Exception $e) {
-            return CheckResult::down($e->getMessage(), null, null);
+            return CheckResult::down("SNMP error: " . $e->getMessage(), null, null);
         }
 
         $durationMs = (int) round((microtime(true) - $start) * 1000);
 
         if (!$process->isSuccessful()) {
+            $errorOutput = trim($process->getErrorOutput());
+            if (empty($errorOutput)) {
+                $errorOutput = trim($process->getOutput());
+            }
+            if (stripos($errorOutput, 'Timeout') !== false) {
+                $errorOutput = "SNMP request timed out.";
+            }
             return CheckResult::down(
-                'SNMP error: ' . trim($process->getErrorOutput()),
+                'SNMP error: ' . $errorOutput,
                 null,
                 $durationMs,
                 ['output' => $process->getOutput()]

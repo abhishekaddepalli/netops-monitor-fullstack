@@ -9,12 +9,20 @@ use Illuminate\Support\Facades\Log;
 
 class DiscoveryJobController extends Controller
 {
+    private function getOrgId(Request $request)
+    {
+        return $request->attributes->get('org_id') 
+            ?? $request->attributes->get('organization')?->id 
+            ?? $request->user()?->organization_id;
+    }
+
     private function checkAccess($orgId)
     {
+        if (!$orgId) return;
         $org = \App\Models\Organization::find($orgId);
         if ($org) {
             $features = $org->effective_features;
-            if (!in_array('network-discovery', $features['allowed_tools'])) {
+            if (!empty($features['allowed_tools']) && !in_array('network-discovery', $features['allowed_tools'])) {
                 abort(403, "Network discovery is not included in your current plan. Please upgrade.");
             }
         }
@@ -22,7 +30,7 @@ class DiscoveryJobController extends Controller
 
     public function index(Request $request)
     {
-        $orgId = $request->attributes->get('org_id');
+        $orgId = $this->getOrgId($request);
         $this->checkAccess($orgId);
         $jobs = DiscoveryJob::where('organization_id', $orgId)->orderBy('id', 'desc')->get();
         
@@ -31,7 +39,7 @@ class DiscoveryJobController extends Controller
 
     public function store(Request $request)
     {
-        $orgId = $request->attributes->get('org_id');
+        $orgId = $this->getOrgId($request);
         $this->checkAccess($orgId);
         
         $validated = $request->validate([
@@ -61,7 +69,7 @@ class DiscoveryJobController extends Controller
     
     public function destroy(Request $request, $id)
     {
-        $orgId = $request->attributes->get('org_id');
+        $orgId = $this->getOrgId($request);
         $job = DiscoveryJob::where('organization_id', $orgId)->findOrFail($id);
         
         $job->delete();
@@ -71,7 +79,7 @@ class DiscoveryJobController extends Controller
     
     public function toggle(Request $request, $id)
     {
-        $orgId = $request->attributes->get('org_id');
+        $orgId = $this->getOrgId($request);
         $job = DiscoveryJob::where('organization_id', $orgId)->findOrFail($id);
         
         $job->is_active = !$job->is_active;
