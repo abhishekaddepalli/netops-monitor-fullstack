@@ -177,13 +177,26 @@ class BillingController extends Controller
         }
 
         $subscription = Subscription::with('plan', 'organization')->where('provider_subscription_id', $request->razorpay_order_id)->firstOrFail();
-        $subscription->update(['status' => 'active']);
+        $cycle = $subscription->billing_cycle ?? 'monthly';
+        $endDate = match ($cycle) {
+            'half_yearly' => now()->addMonths(6),
+            'yearly' => now()->addYear(),
+            'daily' => now()->addDay(),
+            default => now()->addMonth(),
+        };
+
+        $subscription->update([
+            'status' => 'active',
+            'current_period_starts_at' => now(),
+            'current_period_ends_at' => $endDate,
+        ]);
         
         $plan = $subscription->plan;
-        if ($plan && $subscription->organization) {
-            $subscription->organization->update([
+        $org = $subscription->organization ?? \App\Models\Organization::find($subscription->organization_id);
+        if ($plan && $org) {
+            $org->update([
                 'plan' => $plan->key,
-                'billing_cycle' => $subscription->billing_cycle ?? 'monthly',
+                'billing_cycle' => $cycle,
                 'monitor_limit' => $plan->monitor_limit,
                 'team_member_limit' => $plan->team_member_limit,
             ]);
@@ -201,8 +214,24 @@ class BillingController extends Controller
     public function current(Request $request): JsonResponse
     {
         $organization = $request->user()->organization;
-        $subscription = $organization->subscriptions()->with('plan')->whereIn('status', ['active', 'trialing'])->first();
-        return response()->json(['subscription' => $subscription]);
+        $subscription = $organization ? $organization->subscriptions()->with('plan')->whereIn('status', ['active', 'trialing'])->latest()->first() : null;
+        $plan = $subscription ? $subscription->plan : ($organization ? \App\Models\Plan::where('key', $organization->plan ?? 'free')->first() : null);
+
+        return response()->json([
+            'subscription' => $subscription,
+            'plan' => $plan,
+            'organization' => $organization ? [
+                'id' => $organization->id,
+                'name' => $organization->name,
+                'plan' => $organization->plan,
+                'billing_cycle' => $organization->billing_cycle ?? 'monthly',
+                'monitors_count' => $organization->activeMonitorCount(),
+                'monitor_limit' => $organization->monitor_limit,
+                'team_members_count' => $organization->users()->count(),
+                'team_member_limit' => $organization->team_member_limit,
+                'status_pages_count' => $organization->statusPages()->count(),
+            ] : null,
+        ]);
     }
 
     public function invoices(Request $request): JsonResponse

@@ -24,6 +24,12 @@ class StatusPageController extends Controller
     {
         $org = $request->attributes->get('organization');
 
+        $plan = \App\Models\Plan::where('key', $org->plan)->first();
+        $limit = $plan ? (int)$plan->status_page_limit : 1;
+        if ($limit !== -1 && $org->statusPages()->count() >= $limit) {
+            return response()->json(['message' => "Status page limit reached for your plan ({$limit}). Please upgrade."], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
             'custom_domain' => ['nullable', 'string', 'max:255', 'unique:status_pages,custom_domain'],

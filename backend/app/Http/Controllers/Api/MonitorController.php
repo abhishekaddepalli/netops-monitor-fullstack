@@ -162,10 +162,11 @@ class MonitorController extends Controller
             return response()->json(['message' => 'Organization not found.'], 403);
         }
         
-        $features = $org->effective_features;
-        if (!empty($features['max_monitors']) && $org->activeMonitorCount() >= $features['max_monitors']) {
+        if (!$org->canAddMonitor()) {
             return response()->json(['message' => 'Monitor limit reached for your plan. Please upgrade.'], 403);
         }
+        
+        $features = $org->effective_features;
         
         $requestedType = $request->input('type');
         $allowedTypes = $features['allowed_monitor_types'] ?? [];

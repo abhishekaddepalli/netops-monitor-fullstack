@@ -65,8 +65,9 @@ class TeamController extends Controller
             $org = $request->attributes->get('organization');
             abort_unless($request->user()->isOrgAdmin(), 403, 'Only Org Admins can invite team members.');
 
-            if ($org->team_member_limit !== null && $org->team_member_limit !== -1 && $org->users()->count() >= $org->team_member_limit) {
-                return response()->json(['message' => "Team member limit reached for your plan ({$org->team_member_limit})."], 403);
+            $teamLimit = $org->team_member_limit !== null ? (int)$org->team_member_limit : 2;
+            if ($teamLimit !== -1 && $org->users()->count() >= $teamLimit) {
+                return response()->json(['message' => "Team member limit reached for your plan ({$teamLimit}). Please upgrade."], 403);
             }
 
             $validator = Validator::make($request->all(), [

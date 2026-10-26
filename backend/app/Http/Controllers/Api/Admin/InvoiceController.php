@@ -47,7 +47,7 @@ class InvoiceController extends Controller
 
     public function approve($id): JsonResponse
     {
-        $invoice = Invoice::with('subscription')->findOrFail($id);
+        $invoice = Invoice::with(['subscription.plan', 'organization'])->findOrFail($id);
 
         if ($invoice->status !== 'open') {
             return response()->json(['message' => 'Only open invoices can be approved.'], 400);
@@ -58,13 +58,28 @@ class InvoiceController extends Controller
             'paid_at' => now(),
         ]);
 
+        $org = $invoice->organization ?? \App\Models\Organization::find($invoice->organization_id);
+
         if ($invoice->subscription) {
-            $invoice->subscription->update(['status' => 'active']);
+            $cycle = $invoice->subscription->billing_cycle ?? 'monthly';
+            $endDate = match ($cycle) {
+                'half_yearly' => now()->addMonths(6),
+                'yearly' => now()->addYear(),
+                'daily' => now()->addDay(),
+                default => now()->addMonth(),
+            };
+
+            $invoice->subscription->update([
+                'status' => 'active',
+                'current_period_starts_at' => now(),
+                'current_period_ends_at' => $endDate,
+            ]);
+
             $plan = $invoice->subscription->plan;
-            if ($plan && $invoice->organization) {
-                $invoice->organization->update([
+            if ($plan && $org) {
+                $org->update([
                     'plan' => $plan->key,
-                    'billing_cycle' => $invoice->subscription->billing_cycle ?? 'monthly',
+                    'billing_cycle' => $cycle,
                     'monitor_limit' => $plan->monitor_limit,
                     'team_member_limit' => $plan->team_member_limit,
                 ]);

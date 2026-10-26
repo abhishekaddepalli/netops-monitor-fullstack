@@ -148,7 +148,7 @@ class Organization extends Model
             $planAllowedMonitorTypes = $defaultMonitorTypes;
         }
 
-        $maxMonitors = $custom['max_monitors'] ?? ($plan ? $plan->max_monitors : ($this->monitor_limit ?? 50));
+        $maxMonitors = $custom['max_monitors'] ?? ($plan ? ($plan->monitor_limit ?? 50) : ($this->monitor_limit ?? 50));
         $allowedMonitorTypes = $custom['allowed_monitor_types'] ?? $planAllowedMonitorTypes;
         $allowedTools = $custom['allowed_tools'] ?? $planAllowedTools;
         
@@ -161,6 +161,10 @@ class Organization extends Model
 
     public function canAddMonitor(): bool
     {
-        return $this->activeMonitorCount() < $this->effective_features['max_monitors'];
+        $max = (int)($this->effective_features['max_monitors'] ?? 50);
+        if ($max === -1) {
+            return true;
+        }
+        return $this->activeMonitorCount() < $max;
     }
 }

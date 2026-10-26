@@ -77,8 +77,8 @@ class OrganizationController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => ['sometimes', 'string', 'max:255'],
             'plan' => ['sometimes', 'string', 'exists:plans,key'],
-            'monitor_limit' => ['sometimes', 'integer', 'min:1'],
-            'team_member_limit' => ['sometimes', 'integer', 'min:1'],
+            'monitor_limit' => ['sometimes', 'integer', 'min:-1'],
+            'team_member_limit' => ['sometimes', 'integer', 'min:-1'],
             'white_label_enabled' => ['sometimes', 'boolean'],
             'default_monitoring_node_id' => ['nullable', 'exists:monitoring_nodes,id'],
             'address' => ['nullable', 'string'],
