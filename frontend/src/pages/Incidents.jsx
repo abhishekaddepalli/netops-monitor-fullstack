@@ -66,7 +66,7 @@ export default function Incidents() {
           ) : (
             incidents.map((inc, i) => (
               <div className="incident-item" key={inc.id} style={{ cursor: 'pointer', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }} onClick={() => navigate(`/monitors/${inc.monitor_id}`)}>
-                <div style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 16 }}>
+                <div style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   <div className="incident-dot-col" style={{ position: 'relative' }}>
                     <div className={`incident-dot ${inc.state === 'resolved' ? 'resolved' : inc.severity === 'degraded' ? 'degraded' : ''}`} />
                     {i < incidents.length - 1 && <div className="incident-line" />}

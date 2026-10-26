@@ -74,6 +74,7 @@ export default function Team() {
         ) : members.length === 0 ? (
           <div className="panel-body"><EmptyState icon={Users} title="No team members" /></div>
         ) : (
+          <div className="table-responsive">
           <table className="data-table">
             <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Last login</th><th></th></tr></thead>
             <tbody>
@@ -104,6 +105,7 @@ export default function Team() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

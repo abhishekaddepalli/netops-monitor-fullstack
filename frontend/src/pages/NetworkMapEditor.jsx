@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ReactFlow, Controls, Background, MiniMap, addEdge, applyNodeChanges, applyEdgeChanges, Handle, Position, BaseEdge, getBezierPath, EdgeLabelRenderer, Panel, useReactFlow } from '@xyflow/react';
-import { ArrowLeft, Save, Server, Activity, Network, MousePointer2, Terminal, Zap, X, Download, Search, ShieldCheck, ShieldAlert, Database, Router, LayoutGrid } from 'lucide-react';
+import { ArrowLeft, Save, Server, Activity, Network, MousePointer2, Terminal, Zap, X, Download, Search, ShieldCheck, ShieldAlert, Database, Router, LayoutGrid, RefreshCw, ZoomIn, ZoomOut, Maximize2, Filter, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
 import dagre from 'dagre';
 import { getMap, updateMap } from '../api/maps';
 import { monitorsApi } from '../api/monitors';
+import { toolsApi } from '../api/tools';
 import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import NetworkDiscoveryModal from '../components/monitors/NetworkDiscoveryModal';
@@ -203,6 +204,10 @@ export default function NetworkMapEditor() {
   ]);
   const [isTerminalLoading, setIsTerminalLoading] = useState(false);
   const terminalEndRef = useRef(null);
+  const [monitorSearch, setMonitorSearch] = useState('');
+  const [monitorTypeFilter, setMonitorTypeFilter] = useState('all');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
+  const [exportingFormat, setExportingFormat] = useState(null);
   
   useEffect(() => {
     if (terminalEndRef.current) {
@@ -413,38 +418,173 @@ export default function NetworkMapEditor() {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async (format = 'png') => {
     if (!reactFlowWrapper.current) return;
-    const bounds = reactFlowWrapper.current.getBoundingClientRect();
-    html2canvas(reactFlowWrapper.current, {
-      width: bounds.width,
-      height: bounds.height,
-      backgroundColor: theme === 'light' ? '#FFFFFF' : '#0F2036',
-      ignoreElements: (element) => {
-        const className = element.className || '';
-        if (typeof className === 'string') {
-          return className.includes('react-flow__minimap') || 
-                 className.includes('react-flow__controls') || 
-                 className.includes('react-flow__panel');
-        }
-        return false;
+    setExportingFormat(format);
+    toast.info(`Exporting map as ${format.toUpperCase()}...`);
+
+    const filename = `${(map.name || 'network_map').replace(/[^a-zA-Z0-9.-]/g, '_')}_${new Date().toISOString().slice(0, 10)}`;
+
+    if (format === 'json') {
+      try {
+        const exportData = {
+          name: map.name,
+          exported_at: new Date().toISOString(),
+          total_nodes: nodes.length,
+          total_links: edges.length,
+          nodes: nodes.map(n => ({
+            id: n.id,
+            position: n.position,
+            data: {
+              label: n.data?.label,
+              host: n.data?.host,
+              status: n.data?.status,
+              monitor_type: n.data?.monitor_type,
+              monitor_id: n.data?.monitor_id,
+            }
+          })),
+          links: edges.map(e => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            data: e.data
+          }))
+        };
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `${filename}.json`;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+        toast.success('Topology JSON exported successfully.');
+      } catch (err) {
+        toast.error('Failed to export JSON.');
+      } finally {
+        setExportingFormat(null);
       }
-    }).then((canvas) => {
-      const link = document.createElement('a');
-      link.download = `${map.name || 'topology'}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      toast.success('Map exported successfully');
-    });
+      return;
+    }
+
+    try {
+      const bounds = reactFlowWrapper.current.getBoundingClientRect();
+      const canvas = await html2canvas(reactFlowWrapper.current, {
+        width: bounds.width,
+        height: bounds.height,
+        backgroundColor: theme === 'light' ? '#FFFFFF' : '#0F2036',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        ignoreElements: (element) => {
+          const className = element.className || '';
+          if (typeof className === 'string') {
+            return className.includes('react-flow__minimap') || 
+                   className.includes('react-flow__controls') || 
+                   className.includes('react-flow__panel');
+          }
+          return false;
+        }
+      });
+
+      if (format === 'png') {
+        const link = document.createElement('a');
+        link.download = `${filename}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        toast.success('Map image exported successfully.');
+      } else if (format === 'pdf') {
+        const { jsPDF } = await import('jspdf');
+        // Landscape A4 for wide network map topology
+        const pdf = new jsPDF('l', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        
+        // Header banner
+        pdf.setFillColor(15, 32, 54);
+        pdf.rect(0, 0, pdfWidth, 20, 'F');
+        pdf.setFontSize(13);
+        pdf.setTextColor(255, 255, 255);
+        pdf.text(`NetOps Monitor — ${map.name || 'Network Topology'}`, 14, 13);
+        
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(180, 200, 230);
+        pdf.text(`Health: ${healthPercent}%  |  Devices: ${totalNodes}  |  Links: ${edges.length}  |  Exported: ${new Date().toLocaleDateString()}`, pdfWidth - 14, 13, { align: 'right' });
+
+        const margin = 10;
+        const availableWidth = pdfWidth - margin * 2;
+        const availableHeight = pdfHeight - 24 - margin;
+
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const ratio = Math.min(availableWidth / imgWidth, availableHeight / imgHeight);
+        const renderWidth = imgWidth * ratio;
+        const renderHeight = imgHeight * ratio;
+
+        const xPos = margin + (availableWidth - renderWidth) / 2;
+        const yPos = 24 + (availableHeight - renderHeight) / 2;
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(imgData, 'JPEG', xPos, yPos, renderWidth, renderHeight);
+
+        pdf.save(`${filename}.pdf`);
+        toast.success('Map PDF report exported successfully.');
+      }
+    } catch (err) {
+      console.error('Failed to export map:', err);
+      toast.error('Failed to export map.');
+    } finally {
+      setExportingFormat(null);
+    }
   };
 
-  const handleAutoLayout = () => {
+  const handleRefreshStatus = async () => {
+    try {
+      const monRes = await monitorsApi.list({ per_page: 200 });
+      const freshMonitors = monRes.data?.data || monRes.data || [];
+      const monMap = new Map(freshMonitors.map(m => [m.id, m]));
+
+      setNodes(nds => nds.map(n => {
+        if (!n.data?.monitor_id) return n;
+        const m = monMap.get(n.data.monitor_id);
+        if (!m) return n;
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            status: String(m.status || 'UNKNOWN').toUpperCase(),
+            latency: m.last_response_time_ms || n.data.latency,
+            host: m.target || n.data.host,
+            label: m.name || n.data.label
+          }
+        };
+      }));
+
+      setEdges(eds => eds.map(e => {
+        if (!e.data?.monitor_id) return e;
+        const m = monMap.get(e.data.monitor_id);
+        if (!m) return e;
+        return {
+          ...e,
+          data: {
+            ...e.data,
+            status: String(m.status || 'UNKNOWN').toUpperCase()
+          }
+        };
+      }));
+
+      toast.success('Device status refreshed in real time!');
+    } catch (err) {
+      toast.error('Failed to refresh status.');
+    }
+  };
+
+  const handleAutoLayout = (direction = 'TB') => {
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
-    dagreGraph.setGraph({ rankdir: 'TB', ranksep: 100, nodesep: 150 });
+    dagreGraph.setGraph({ rankdir: direction, ranksep: 90, nodesep: 130 });
 
     nodes.forEach((node) => {
-      dagreGraph.setNode(node.id, { width: 160, height: 80 });
+      dagreGraph.setNode(node.id, { width: 180, height: 90 });
     });
 
     edges.forEach((edge) => {
@@ -458,15 +598,24 @@ export default function NetworkMapEditor() {
       return {
         ...node,
         position: {
-          x: nodeWithPosition.x - 80,
-          y: nodeWithPosition.y - 40,
+          x: nodeWithPosition.x - 90,
+          y: nodeWithPosition.y - 45,
         },
       };
     });
 
     setNodes(layoutedNodes);
-    toast.success('Auto-layout applied!');
+    toast.success(`Auto-layout (${direction === 'TB' ? 'Vertical' : 'Horizontal'}) applied!`);
   };
+
+  const filteredMonitors = monitors.filter(m => {
+    const query = monitorSearch.toLowerCase().trim();
+    const matchesSearch = !query || 
+      (m.name && m.name.toLowerCase().includes(query)) || 
+      (m.target && m.target.toLowerCase().includes(query));
+    const matchesType = monitorTypeFilter === 'all' || m.type === monitorTypeFilter;
+    return matchesSearch && matchesType;
+  });
 
   if (!map) return <div style={{ padding: 48, textAlign: 'center' }}>Loading Canvas...</div>;
 
@@ -478,59 +627,169 @@ export default function NetworkMapEditor() {
   return (
     <div style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', background: 'var(--navy-900)', borderBottom: '1px solid var(--navy-700)', zIndex: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button onClick={() => navigate('/network-maps')} style={{ background: 'transparent', border: 'none', color: 'var(--white-60)', cursor: 'pointer' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', background: 'var(--navy-900)', borderBottom: '1px solid var(--navy-700)', zIndex: 10, flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={() => navigate('/network-maps')} style={{ background: 'transparent', border: 'none', color: 'var(--white-60)', cursor: 'pointer', padding: 4 }} title="Back to Maps">
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 600, color: 'var(--white-100)', margin: 0 }}>{map.name}</h1>
-            <div style={{ fontSize: 12, color: 'var(--white-60)' }}>Drag monitors from the sidebar to the canvas</div>
+            <h1 style={{ fontSize: 17, fontWeight: 700, color: 'var(--white-100)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {map.name}
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: healthPercent === 100 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: healthPercent === 100 ? 'var(--green-400)' : 'var(--red-400)' }}>
+                {healthPercent}% Health
+              </span>
+            </h1>
+            <div style={{ fontSize: 11, color: 'var(--white-60)' }}>{totalNodes} devices &bull; {edges.length} connections</div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <button className="btn-ghost" onClick={() => setIsHeatmapMode(!isHeatmapMode)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '8px' }}>
-            <Activity size={16} /> Heatmap
+
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setIsSidebarOpen(!isSidebarOpen)} title="Toggle Monitors Panel" style={{ gap: 6 }}>
+            <Search size={14} /> Devices ({filteredMonitors.length})
           </button>
-          <button className="btn-ghost" onClick={() => setIsTrafficMode(!isTrafficMode)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '8px' }}>
-            <Zap size={16} /> Traffic Flow
+          <button className="btn btn-ghost btn-sm" onClick={handleRefreshStatus} title="Sync Live Status" style={{ gap: 6 }}>
+            <RefreshCw size={14} /> Sync
           </button>
-          <button className="btn-ghost" onClick={handleAutoLayout} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '8px' }}>
-            <LayoutGrid size={16} /> Auto-Layout
+          <button className={`btn btn-ghost btn-sm${isHeatmapMode ? ' active' : ''}`} onClick={() => setIsHeatmapMode(!isHeatmapMode)} style={{ gap: 6 }}>
+            <Activity size={14} /> Heatmap
           </button>
-          <button className="btn-ghost" onClick={() => setIsTerminalOpen(!isTerminalOpen)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '8px' }}>
-            <Terminal size={16} /> Terminal
+          <button className={`btn btn-ghost btn-sm${isTrafficMode ? ' active' : ''}`} onClick={() => setIsTrafficMode(!isTrafficMode)} style={{ gap: 6 }}>
+            <Zap size={14} /> Traffic
           </button>
-          <button className="btn-ghost" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '8px' }}>
-            <Download size={16} /> Export
+          <button className="btn btn-ghost btn-sm" onClick={() => handleAutoLayout('TB')} title="Auto-Layout Vertical" style={{ gap: 6 }}>
+            <LayoutGrid size={14} /> Layout
           </button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
-            <Save size={16} /> {isSaving ? 'Saving...' : 'Save Topology'}
+          <button className={`btn btn-ghost btn-sm${isTerminalOpen ? ' active' : ''}`} onClick={() => setIsTerminalOpen(!isTerminalOpen)} style={{ gap: 6 }}>
+            <Terminal size={14} /> Terminal
+          </button>
+          
+          {/* Export Dropdown Group */}
+          <div style={{ display: 'inline-flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--navy-600)' }}>
+            <button className="btn btn-ghost btn-sm" disabled={!!exportingFormat} onClick={() => handleExport('png')} style={{ borderRadius: 0, padding: '5px 9px', fontSize: 12 }}>
+              PNG
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={!!exportingFormat} onClick={() => handleExport('pdf')} style={{ borderRadius: 0, padding: '5px 9px', fontSize: 12, borderLeft: '1px solid var(--navy-600)' }}>
+              PDF
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={!!exportingFormat} onClick={() => handleExport('json')} style={{ borderRadius: 0, padding: '5px 9px', fontSize: 12, borderLeft: '1px solid var(--navy-600)' }}>
+              JSON
+            </button>
+          </div>
+
+          <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={isSaving} style={{ gap: 6 }}>
+            <Save size={14} /> {isSaving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
 
       <div style={{ display: 'flex', flex: 1, position: 'relative', overflow: 'hidden' }}>
         {/* Sidebar */}
-        <div style={{ width: 280, background: 'var(--navy-800)', borderRight: '1px solid var(--navy-700)', display: 'flex', flexDirection: 'column', zIndex: 10 }}>
-          <div style={{ padding: 16, borderBottom: '1px solid var(--navy-700)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontWeight: 600, color: 'var(--white-100)' }}>Available Monitors</div>
-            <button className="btn btn-primary" onClick={() => setIsDiscoveryOpen(true)} style={{ width: '100%', justifyContent: 'center' }}>
-              <Search size={16} /> Discover Networks
-            </button>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {monitors.map(mon => (
-              <div key={mon.id} onDragStart={(e) => onDragStart(e, mon)} draggable style={{ background: 'var(--navy-900)', padding: '12px', borderRadius: 8, border: '1px solid var(--navy-600)', cursor: 'grab', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <MousePointer2 size={16} color="var(--chakra-400)" />
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--white-100)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{mon.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--white-60)' }}>{mon.type}</div>
-                </div>
+        {isSidebarOpen && (
+          <div style={{ 
+            width: 290, 
+            background: 'var(--navy-800)', 
+            borderRight: '1px solid var(--navy-700)', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            zIndex: 15,
+            transition: 'width 0.2s ease',
+            flexShrink: 0
+          }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--navy-700)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--white-100)' }}>Available Devices</span>
+                <span style={{ fontSize: 11, color: 'var(--white-50)', fontFamily: 'var(--font-mono)' }}>{filteredMonitors.length} / {monitors.length}</span>
               </div>
-            ))}
+              
+              {/* Filter Search */}
+              <input 
+                type="text"
+                placeholder="Search device or IP..."
+                value={monitorSearch}
+                onChange={e => setMonitorSearch(e.target.value)}
+                style={{
+                  background: 'var(--navy-900)',
+                  border: '1px solid var(--navy-600)',
+                  borderRadius: 6,
+                  padding: '6px 10px',
+                  color: 'var(--white-100)',
+                  fontSize: 12,
+                  outline: 'none'
+                }}
+              />
+
+              {/* Type Filter */}
+              <select 
+                value={monitorTypeFilter} 
+                onChange={e => setMonitorTypeFilter(e.target.value)}
+                style={{
+                  background: 'var(--navy-900)',
+                  border: '1px solid var(--navy-600)',
+                  borderRadius: 6,
+                  padding: '6px 10px',
+                  color: 'var(--white-90)',
+                  fontSize: 12,
+                  outline: 'none'
+                }}
+              >
+                <option value="all">All Types</option>
+                <option value="http">HTTP/S</option>
+                <option value="ping">Ping / ICMP</option>
+                <option value="tcp_port">TCP Port</option>
+                <option value="server_agent">Server Agent</option>
+                <option value="snmp">SNMP Router/Switch</option>
+                <option value="ssl">SSL Certificate</option>
+                <option value="dns">DNS</option>
+              </select>
+
+              <button className="btn btn-secondary btn-sm" onClick={() => setIsDiscoveryOpen(true)} style={{ width: '100%', justifyContent: 'center', gap: 6, fontSize: 12 }}>
+                <Search size={14} /> Network Discovery
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filteredMonitors.length === 0 ? (
+                <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--white-50)', fontSize: 12 }}>
+                  No matching devices found.
+                </div>
+              ) : (
+                filteredMonitors.map(mon => (
+                  <div 
+                    key={mon.id} 
+                    onDragStart={(e) => onDragStart(e, mon)} 
+                    draggable 
+                    style={{ 
+                      background: 'var(--navy-900)', 
+                      padding: '10px 12px', 
+                      borderRadius: 8, 
+                      border: '1px solid var(--navy-700)', 
+                      cursor: 'grab', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 10,
+                      transition: 'border-color 0.2s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--chakra-400)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--navy-700)'}
+                  >
+                    <div style={{ 
+                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                      background: mon.status === 'up' ? 'var(--green-400)' : mon.status === 'down' ? 'var(--red-400)' : 'var(--saffron-400)' 
+                    }} />
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--white-100)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                        {mon.name}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--white-50)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                        {mon.target} &bull; {mon.type}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Canvas */}
         <div style={{ flex: 1 }} ref={reactFlowWrapper}>

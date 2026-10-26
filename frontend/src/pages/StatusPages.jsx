@@ -65,6 +65,7 @@ export default function StatusPages() {
             />
           </div>
         ) : (
+          <div className="table-responsive">
           <table className="data-table">
             <thead><tr><th>Name</th><th>URL</th><th>Components</th><th>Published</th><th></th></tr></thead>
             <tbody>
@@ -87,6 +88,7 @@ export default function StatusPages() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

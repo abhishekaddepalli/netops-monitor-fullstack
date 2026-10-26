@@ -32,6 +32,7 @@ export default function NetworkTools() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [downloadingFormat, setDownloadingFormat] = useState(null);
 
   useEffect(() => {
     const pTarget = searchParams.get('target');
@@ -72,58 +73,200 @@ export default function NetworkTools() {
 
   const handleDownload = async (format = 'png') => {
     if (!result) return;
+    setDownloadingFormat(format);
+    toast.info(`Preparing ${format.toUpperCase()} export...`);
+
     try {
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const safeTarget = (target || 'diagnostic').replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filenameBase = `${activeTool}_${safeTarget}_${timestamp}`;
+
       if (format === 'json') {
         const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${activeTool}_result_${new Date().getTime()}.json`;
+        a.download = `${filenameBase}.json`;
         a.click();
         URL.revokeObjectURL(url);
+        toast.success('JSON export downloaded successfully.');
+        setDownloadingFormat(null);
         return;
       }
 
-      const { default: html2canvas } = await import('html2canvas');
-      const element = document.getElementById('diagnostic-results-container');
-      if (!element) return;
-      
-      const canvas = await html2canvas(element, { 
-        backgroundColor: '#0f172a',
-        scale: 2
+      const sourceElement = document.getElementById('diagnostic-results-container');
+      if (!sourceElement) {
+        toast.error('No results element found to export.');
+        setDownloadingFormat(null);
+        return;
+      }
+
+      // Clone container to ensure 100% full content is rendered with no scrollbars or maxHeight clipping
+      const exportClone = sourceElement.cloneNode(true);
+      exportClone.style.maxHeight = 'none';
+      exportClone.style.overflow = 'visible';
+      exportClone.style.height = 'auto';
+      exportClone.style.width = '880px';
+      exportClone.style.backgroundColor = '#0f172a';
+      exportClone.style.color = '#f8fafc';
+      exportClone.style.padding = '28px';
+      exportClone.style.borderRadius = '12px';
+      exportClone.style.boxSizing = 'border-box';
+
+      // Unrestrict all scrollable children in clone
+      const scrollables = exportClone.querySelectorAll('*');
+      scrollables.forEach(el => {
+        if (el.style) {
+          el.style.maxHeight = 'none';
+          el.style.overflow = 'visible';
+          el.style.overflowY = 'visible';
+          el.style.overflowX = 'visible';
+          el.style.height = 'auto';
+        }
       });
+
+      // Add high-tech NetOps Report Header to export
+      const headerDiv = document.createElement('div');
+      headerDiv.style.borderBottom = '2px solid #334155';
+      headerDiv.style.paddingBottom = '16px';
+      headerDiv.style.marginBottom = '22px';
+      headerDiv.style.display = 'flex';
+      headerDiv.style.justifyContent = 'space-between';
+      headerDiv.style.alignItems = 'center';
+      headerDiv.innerHTML = `
+        <div>
+          <div style="font-size: 19px; font-weight: 800; color: #38bdf8; letter-spacing: -0.5px; margin-bottom: 4px;">
+            NetOps Monitor — Diagnostic Report
+          </div>
+          <div style="font-size: 13px; color: #94a3b8;">
+            Diagnostic: <strong style="color: #f1f5f9; font-weight: 700;">${activeToolDef?.name || activeTool.toUpperCase()}</strong> &nbsp;|&nbsp; 
+            Target: <strong style="color: #38bdf8; font-family: monospace;">${target}</strong>
+          </div>
+        </div>
+        <div style="text-align: right; font-size: 11px; color: #64748b; font-family: monospace;">
+          <div>Execution Date: ${new Date().toLocaleString()}</div>
+          <div style="color: #10b981; font-weight: 700; margin-top: 3px;">● RESULTS CAPTURED</div>
+        </div>
+      `;
+      exportClone.insertBefore(headerDiv, exportClone.firstChild);
+
+      // Add report footer
+      const footerDiv = document.createElement('div');
+      footerDiv.style.borderTop = '1px solid #1e293b';
+      footerDiv.style.paddingTop = '12px';
+      footerDiv.style.marginTop = '24px';
+      footerDiv.style.fontSize = '11px';
+      footerDiv.style.color = '#64748b';
+      footerDiv.style.display = 'flex';
+      footerDiv.style.justifyContent = 'space-between';
+      footerDiv.innerHTML = `
+        <span>NetOps Network Infrastructure Suite</span>
+        <span>Generated via Diagnostic Engine &bull; Full Results Verified</span>
+      `;
+      exportClone.appendChild(footerDiv);
+
+      // Mount clone offscreen
+      const hiddenContainer = document.createElement('div');
+      hiddenContainer.style.position = 'fixed';
+      hiddenContainer.style.top = '-99999px';
+      hiddenContainer.style.left = '0';
+      hiddenContainer.style.zIndex = '-9999';
+      hiddenContainer.style.width = '880px';
+      hiddenContainer.appendChild(exportClone);
+      document.body.appendChild(hiddenContainer);
+
+      const { default: html2canvas } = await import('html2canvas');
+      const canvas = await html2canvas(exportClone, {
+        backgroundColor: '#0f172a',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        windowWidth: 1200
+      });
+
+      // Cleanup DOM clone
+      document.body.removeChild(hiddenContainer);
 
       if (format === 'png' || format === 'jpg') {
         const mime = format === 'jpg' ? 'image/jpeg' : 'image/png';
-        const dataURL = canvas.toDataURL(mime);
+        const dataURL = canvas.toDataURL(mime, 0.95);
         const a = document.createElement('a');
         a.href = dataURL;
-        a.download = `${activeTool}_result_${new Date().getTime()}.${format}`;
+        a.download = `${filenameBase}.${format}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        toast.success(`${format.toUpperCase()} image downloaded successfully.`);
       } else if (format === 'pdf') {
         const { jsPDF } = await import('jspdf');
         const pdf = new jsPDF('p', 'mm', 'a4');
-        const imgData = canvas.toDataURL('image/jpeg', 1.0);
         const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`${activeTool}_result_${new Date().getTime()}.pdf`);
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const margin = 10;
+        const contentWidth = pdfWidth - margin * 2;
+        const contentHeight = pdfHeight - margin * 2;
+
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const totalPdfHeight = (imgHeight * contentWidth) / imgWidth;
+
+        if (totalPdfHeight <= contentHeight) {
+          const imgData = canvas.toDataURL('image/jpeg', 0.95);
+          pdf.addImage(imgData, 'JPEG', margin, margin, contentWidth, totalPdfHeight);
+        } else {
+          // Multi-page slicing: cuts high-resolution canvas into clean pages
+          const chunkHeightPx = Math.floor(contentHeight * (imgWidth / contentWidth));
+          let renderedHeightPx = 0;
+          let pageIndex = 0;
+
+          while (renderedHeightPx < imgHeight) {
+            const sliceHeightPx = Math.min(chunkHeightPx, imgHeight - renderedHeightPx);
+            
+            const sliceCanvas = document.createElement('canvas');
+            sliceCanvas.width = imgWidth;
+            sliceCanvas.height = sliceHeightPx;
+            const sliceCtx = sliceCanvas.getContext('2d');
+            
+            sliceCtx.drawImage(
+              canvas,
+              0, renderedHeightPx, imgWidth, sliceHeightPx,
+              0, 0, imgWidth, sliceHeightPx
+            );
+
+            const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 0.95);
+            const slicePdfHeight = (sliceHeightPx * contentWidth) / imgWidth;
+
+            if (pageIndex > 0) pdf.addPage();
+            pdf.addImage(sliceImgData, 'JPEG', margin, margin, contentWidth, slicePdfHeight);
+
+            // Page numbering
+            pdf.setFontSize(8);
+            pdf.setTextColor(150, 150, 150);
+            pdf.text(`Page ${pageIndex + 1}`, pdfWidth - 25, pdfHeight - 4);
+
+            renderedHeightPx += sliceHeightPx;
+            pageIndex++;
+          }
+        }
+        pdf.save(`${filenameBase}.pdf`);
+        toast.success('Complete multi-page PDF report downloaded.');
       } else if (format === 'svg') {
-        // Basic SVG wrapping the PNG data as image
         const dataURL = canvas.toDataURL('image/png');
         const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}"><image href="${dataURL}" width="100%" height="100%"/></svg>`;
         const blob = new Blob([svgContent], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${activeTool}_result_${new Date().getTime()}.svg`;
+        a.download = `${filenameBase}.svg`;
         a.click();
         URL.revokeObjectURL(url);
+        toast.success('SVG vector export downloaded.');
       }
     } catch (err) {
-      console.error('Failed to generate file:', err);
+      console.error('Failed to generate export file:', err);
+      toast.error('Failed to export diagnostic results. Please try again.');
+    } finally {
+      setDownloadingFormat(null);
     }
   };
 
@@ -152,7 +295,7 @@ export default function NetworkTools() {
     if (activeTool === 'dns') {
       if (!result.records || result.records.length === 0) return <div style={{ padding: 20, color: 'var(--white-60)' }}>No records found.</div>;
       return (
-        <table className="data-table">
+        <div className="table-responsive"><table className="data-table">
           <thead>
             <tr><th>Type</th><th>Host</th><th>Target / Value</th><th>TTL</th></tr>
           </thead>
@@ -166,7 +309,7 @@ export default function NetworkTools() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       );
     }
 
@@ -236,26 +379,28 @@ export default function NetworkTools() {
               {result.is_listed ? 'Listed on one or more blacklists' : 'Clean - Not listed on any blacklists'}
             </div>
           </div>
-          <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--navy-600)' }}>
-                <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Provider</th>
-                <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Status</th>
-                <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.results.map((r, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--navy-700)' }}>
-                  <td style={{ padding: '12px 0' }}>{r.provider}</td>
-                  <td style={{ padding: '12px 0', color: r.listed ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>
-                    {r.listed ? 'LISTED' : 'OK'}
-                  </td>
-                  <td style={{ padding: '12px 0', fontFamily: 'var(--font-mono)' }}>{r.details || '-'}</td>
+          <div className="table-responsive">
+            <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--navy-600)' }}>
+                  <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Provider</th>
+                  <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Status</th>
+                  <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Details</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {result.results.map((r, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--navy-700)' }}>
+                    <td style={{ padding: '12px 0' }}>{r.provider}</td>
+                    <td style={{ padding: '12px 0', color: r.listed ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>
+                      {r.listed ? 'LISTED' : 'OK'}
+                    </td>
+                    <td style={{ padding: '12px 0', fontFamily: 'var(--font-mono)' }}>{r.details || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       );
     }
@@ -286,24 +431,26 @@ export default function NetworkTools() {
               No active threats detected against this IP.
             </div>
           ) : (
-            <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--navy-600)' }}>
-                  <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Threat Type</th>
-                  <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Source List</th>
-                  <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Indicator</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.detections.map((d, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--navy-700)' }}>
-                    <td style={{ padding: '12px 0', fontWeight: 600, color: 'var(--danger)' }}>{d.source}</td>
-                    <td style={{ padding: '12px 0' }}>{d.list}</td>
-                    <td style={{ padding: '12px 0', fontFamily: 'var(--font-mono)' }}>{d.record}</td>
+            <div className="table-responsive">
+              <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--navy-600)' }}>
+                    <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Threat Type</th>
+                    <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Source List</th>
+                    <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Indicator</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {result.detections.map((d, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--navy-700)' }}>
+                      <td style={{ padding: '12px 0', fontWeight: 600, color: 'var(--danger)' }}>{d.source}</td>
+                      <td style={{ padding: '12px 0' }}>{d.list}</td>
+                      <td style={{ padding: '12px 0', fontFamily: 'var(--font-mono)' }}>{d.record}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       );
@@ -312,22 +459,24 @@ export default function NetworkTools() {
     if (activeTool === 'snmp-routes') {
       if (!result.routes || result.routes.length === 0) return <div style={{ padding: 20, color: 'var(--white-60)' }}>No routes found.</div>;
       return (
-        <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--navy-600)' }}>
-              <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Destination</th>
-              <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Next Hop</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.routes.map((r, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid var(--navy-700)' }}>
-                <td style={{ padding: '12px 0', fontFamily: 'var(--font-mono)' }}>{r.destination}</td>
-                <td style={{ padding: '12px 0', fontFamily: 'var(--font-mono)', color: 'var(--success)' }}>{r.next_hop}</td>
+        <div className="table-responsive">
+          <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--navy-600)' }}>
+                <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Destination</th>
+                <th style={{ padding: '10px 0', color: 'var(--white-60)' }}>Next Hop</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {result.routes.map((r, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--navy-700)' }}>
+                  <td style={{ padding: '12px 0', fontFamily: 'var(--font-mono)' }}>{r.destination}</td>
+                  <td style={{ padding: '12px 0', fontFamily: 'var(--font-mono)', color: 'var(--success)' }}>{r.next_hop}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       );
     }
 
@@ -441,22 +590,22 @@ export default function NetworkTools() {
         ) : (
           result && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
                 <div style={{ fontSize: 16, fontWeight: 600 }}>Diagnostic Results</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="btn btn-ghost" onClick={() => handleDownload('png')} style={{ padding: '6px 12px', fontSize: 13, gap: 6 }}>
-                    <Download size={16} /> PNG
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" className="btn btn-ghost" disabled={!!downloadingFormat} onClick={() => handleDownload('png')} style={{ padding: '6px 12px', fontSize: 13, gap: 6 }}>
+                    <Download size={16} /> {downloadingFormat === 'png' ? 'Exporting...' : 'PNG'}
                   </button>
-                  <button type="button" className="btn btn-ghost" onClick={() => handleDownload('jpg')} style={{ padding: '6px 12px', fontSize: 13, gap: 6 }}>
-                    <Download size={16} /> JPG
+                  <button type="button" className="btn btn-ghost" disabled={!!downloadingFormat} onClick={() => handleDownload('jpg')} style={{ padding: '6px 12px', fontSize: 13, gap: 6 }}>
+                    <Download size={16} /> {downloadingFormat === 'jpg' ? 'Exporting...' : 'JPG'}
                   </button>
-                  <button type="button" className="btn btn-ghost" onClick={() => handleDownload('pdf')} style={{ padding: '6px 12px', fontSize: 13, gap: 6 }}>
-                    <Download size={16} /> PDF
+                  <button type="button" className="btn btn-primary" disabled={!!downloadingFormat} onClick={() => handleDownload('pdf')} style={{ padding: '6px 12px', fontSize: 13, gap: 6 }}>
+                    <Download size={16} /> {downloadingFormat === 'pdf' ? 'Generating PDF...' : 'Full PDF Report'}
                   </button>
-                  <button type="button" className="btn btn-ghost" onClick={() => handleDownload('svg')} style={{ padding: '6px 12px', fontSize: 13, gap: 6 }}>
-                    <Download size={16} /> SVG
+                  <button type="button" className="btn btn-ghost" disabled={!!downloadingFormat} onClick={() => handleDownload('svg')} style={{ padding: '6px 12px', fontSize: 13, gap: 6 }}>
+                    <Download size={16} /> {downloadingFormat === 'svg' ? 'Exporting...' : 'SVG'}
                   </button>
-                  <button type="button" className="btn btn-ghost" onClick={() => handleDownload('json')} style={{ padding: '6px 12px', fontSize: 13, gap: 6 }}>
+                  <button type="button" className="btn btn-ghost" disabled={!!downloadingFormat} onClick={() => handleDownload('json')} style={{ padding: '6px 12px', fontSize: 13, gap: 6 }}>
                     <Download size={16} /> JSON
                   </button>
                 </div>

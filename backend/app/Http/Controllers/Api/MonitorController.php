@@ -88,6 +88,30 @@ class MonitorController extends Controller
             'activeIncident', 
             'serverMetrics' => fn($q) => $q->latest('created_at')->limit(30)
         ]);
+
+        // Compute real-time uptime metrics for 24h, 7d, and 30d
+        $stats24h = \Illuminate\Support\Facades\DB::table('checks')
+            ->where('monitor_id', $monitor->id)
+            ->where('checked_at', '>=', now()->subHours(24))
+            ->selectRaw("COUNT(*) as total, SUM(CASE WHEN result = 'up' THEN 1 ELSE 0 END) as up_count")
+            ->first();
+
+        $stats7d = \Illuminate\Support\Facades\DB::table('checks')
+            ->where('monitor_id', $monitor->id)
+            ->where('checked_at', '>=', now()->subDays(7))
+            ->selectRaw("COUNT(*) as total, SUM(CASE WHEN result = 'up' THEN 1 ELSE 0 END) as up_count")
+            ->first();
+
+        $stats30d = \Illuminate\Support\Facades\DB::table('checks')
+            ->where('monitor_id', $monitor->id)
+            ->where('checked_at', '>=', now()->subDays(30))
+            ->selectRaw("COUNT(*) as total, SUM(CASE WHEN result = 'up' THEN 1 ELSE 0 END) as up_count")
+            ->first();
+
+        $monitor->uptime_24h = ($stats24h && $stats24h->total > 0) ? round(($stats24h->up_count / $stats24h->total) * 100, 2) : 100;
+        $monitor->uptime_7d = ($stats7d && $stats7d->total > 0) ? round(($stats7d->up_count / $stats7d->total) * 100, 2) : 100;
+        $monitor->uptime_30d = ($stats30d && $stats30d->total > 0) ? round(($stats30d->up_count / $stats30d->total) * 100, 2) : 100;
+        $monitor->uptime_pct = $monitor->uptime_24h;
         
         return response()->json($monitor);
     }
@@ -320,7 +344,53 @@ class MonitorController extends Controller
                     'response_time_ms' => $r->avg_response_time_ms
                 ]);
         } else {
-            $data = [];
+            $data = collect();
+        }
+
+        // Fallback to raw checks aggregation if rollups are empty
+        if ($data->isEmpty()) {
+            $since = match ($range) {
+                '24h' => now()->subHours(24),
+                '3d' => now()->subDays(3),
+                '7d' => now()->subDays(7),
+                '30d', '1m' => now()->subDays(30),
+                default => now()->subHours(24),
+            };
+
+            $driver = \Illuminate\Support\Facades\DB::connection()->getDriverName();
+            if ($driver === 'mysql') {
+                $format = ($range === '30d' || $range === '1m') ? '%Y-%m-%d 00:00:00' : '%Y-%m-%d %H:00:00';
+                $bucketSql = "DATE_FORMAT(checked_at, '{$format}')";
+            } else {
+                $format = ($range === '30d' || $range === '1m') ? '%Y-%m-%d 00:00:00' : '%Y-%m-%d %H:00:00';
+                $bucketSql = "strftime('{$format}', checked_at)";
+            }
+
+            $rawPoints = \Illuminate\Support\Facades\DB::table('checks')
+                ->where('monitor_id', $monitor->id)
+                ->where('checked_at', '>=', $since)
+                ->selectRaw("{$bucketSql} as bucket, AVG(response_time_ms) as avg_ms")
+                ->groupBy('bucket')
+                ->orderBy('bucket')
+                ->get();
+
+            if ($rawPoints->isNotEmpty()) {
+                $data = $rawPoints->map(fn ($r) => [
+                    'checked_at' => $r->bucket,
+                    'response_time_ms' => round($r->avg_ms, 1)
+                ]);
+            } else {
+                $data = $monitor->checks()
+                    ->latest('checked_at')
+                    ->limit(50)
+                    ->get()
+                    ->reverse()
+                    ->values()
+                    ->map(fn ($c) => [
+                        'checked_at' => $c->checked_at,
+                        'response_time_ms' => $c->response_time_ms
+                    ]);
+            }
         }
 
         return response()->json(['data' => $data]);

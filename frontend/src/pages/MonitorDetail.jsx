@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Chart from 'react-apexcharts';
-import { ChevronRight, CheckCircle2, Pencil, Pause, Play, Zap, Copy, Printer } from 'lucide-react';
+import { ChevronRight, CheckCircle2, Pencil, Pause, Play, Zap, Copy, Printer, Download, FileText, Activity } from 'lucide-react';
 import { monitorsApi } from '../api/monitors';
 import { incidentsApi } from '../api/incidents';
 import { apiErrorMessage } from '../api/client';
@@ -37,6 +37,7 @@ export default function MonitorDetail() {
   const [showEdit, setShowEdit] = useState(false);
   const [chartRange, setChartRange] = useState('live');
   const [actionModal, setActionModal] = useState(null);
+  const [downloadingExport, setDownloadingExport] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -126,6 +127,111 @@ export default function MonitorDetail() {
     const names = { bash: 'Bash', ps1: 'PowerShell', mikrotik: 'RouterOS', python: 'Python' };
     toast.success(`${names[type]} script copied to clipboard.`);
   }
+
+  const handleDownload = async (type = 'png') => {
+    setDownloadingExport(type);
+    toast.info(`Generating monitor ${type.toUpperCase()}...`);
+
+    try {
+      const { default: html2canvas } = await import('html2canvas');
+      const filenameBase = `${(monitor.name || 'monitor').replace(/[^a-zA-Z0-9.-]/g, '_')}_${chartRange}_${new Date().toISOString().slice(0, 10)}`;
+
+      if (type === 'png') {
+        const chartElement = document.getElementById('monitor-chart-panel');
+        if (!chartElement) {
+          toast.error('Graph element not found.');
+          return;
+        }
+
+        const canvas = await html2canvas(chartElement, {
+          backgroundColor: '#0f172a',
+          scale: 2,
+          useCORS: true,
+          logging: false
+        });
+
+        const link = document.createElement('a');
+        link.download = `${filenameBase}_graph.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        toast.success('Graph PNG downloaded successfully.');
+      } else if (type === 'pdf') {
+        const reportElement = document.getElementById('monitor-full-report');
+        if (!reportElement) {
+          toast.error('Report element not found.');
+          return;
+        }
+
+        const canvas = await html2canvas(reportElement, {
+          backgroundColor: '#0b1929',
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          ignoreElements: (el) => {
+            const cls = el.className || '';
+            return typeof cls === 'string' && (cls.includes('btn') || cls.includes('apexcharts-toolbar') || cls.includes('tab-row'));
+          }
+        });
+
+        const { jsPDF } = await import('jspdf');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const margin = 10;
+        const contentWidth = pdfWidth - margin * 2;
+        const contentHeight = pdfHeight - margin * 2;
+
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const totalPdfHeight = (imgHeight * contentWidth) / imgWidth;
+
+        if (totalPdfHeight <= contentHeight) {
+          const imgData = canvas.toDataURL('image/jpeg', 0.95);
+          pdf.addImage(imgData, 'JPEG', margin, margin, contentWidth, totalPdfHeight);
+        } else {
+          // Multi-page slicing: handles arbitrarily tall reports cleanly
+          const chunkHeightPx = Math.floor(contentHeight * (imgWidth / contentWidth));
+          let renderedHeightPx = 0;
+          let pageIndex = 0;
+
+          while (renderedHeightPx < imgHeight) {
+            const sliceHeightPx = Math.min(chunkHeightPx, imgHeight - renderedHeightPx);
+            const sliceCanvas = document.createElement('canvas');
+            sliceCanvas.width = imgWidth;
+            sliceCanvas.height = sliceHeightPx;
+            const sliceCtx = sliceCanvas.getContext('2d');
+
+            sliceCtx.drawImage(
+              canvas,
+              0, renderedHeightPx, imgWidth, sliceHeightPx,
+              0, 0, imgWidth, sliceHeightPx
+            );
+
+            const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 0.95);
+            const slicePdfHeight = (sliceHeightPx * contentWidth) / imgWidth;
+
+            if (pageIndex > 0) pdf.addPage();
+            pdf.addImage(sliceImgData, 'JPEG', margin, margin, contentWidth, slicePdfHeight);
+
+            pdf.setFontSize(8);
+            pdf.setTextColor(140, 140, 140);
+            pdf.text(`Page ${pageIndex + 1}`, pdfWidth - 25, pdfHeight - 4);
+
+            renderedHeightPx += sliceHeightPx;
+            pageIndex++;
+          }
+        }
+
+        pdf.save(`${filenameBase}_report.pdf`);
+        toast.success('Complete PDF report downloaded successfully.');
+      }
+    } catch (err) {
+      console.error('Failed to generate export:', err);
+      toast.error('Failed to download report. Please try again.');
+    } finally {
+      setDownloadingExport(null);
+    }
+  };
 
   if (!monitor) {
     return <Skeleton height={400} />;
@@ -230,7 +336,7 @@ export default function MonitorDetail() {
   }
 
   return (
-    <>
+    <div id="monitor-full-report">
       <div className="breadcrumb">
         <Link to="/monitors">Monitors</Link>
         <ChevronRight />
@@ -250,9 +356,15 @@ export default function MonitorDetail() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button className="btn btn-ghost" onClick={() => window.print()} title="Download PDF Report">
-            <Printer size={15} />Report
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button className="btn btn-ghost btn-sm" disabled={!!downloadingExport} onClick={() => handleDownload('png')} title="Download Graph PNG" style={{ gap: 6 }}>
+            <Download size={14} /> {downloadingExport === 'png' ? 'Exporting...' : 'Graph PNG'}
+          </button>
+          <button className="btn btn-primary btn-sm" disabled={!!downloadingExport} onClick={() => handleDownload('pdf')} title="Download Full PDF Report" style={{ gap: 6 }}>
+            <FileText size={14} /> {downloadingExport === 'pdf' ? 'Generating PDF...' : 'Full PDF Report'}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => window.print()} title="Print Report" style={{ gap: 6 }}>
+            <Printer size={14} /> Print
           </button>
           {isOperatorOrAbove && (
             <>
@@ -289,6 +401,12 @@ export default function MonitorDetail() {
           </div>
         </div>
         <div className="metric-box">
+          <div className="metric-box-label">24h Uptime</div>
+          <div className="metric-box-val" style={{ color: (monitor.uptime_24h ?? 100) >= 99 ? 'var(--green-400)' : 'var(--saffron-500)' }}>
+            {monitor.uptime_24h ?? monitor.uptime_pct ?? 100}%
+          </div>
+        </div>
+        <div className="metric-box">
           <div className="metric-box-label">Avg Response</div>
           <div className="metric-box-val">{formatMs(monitor.last_response_time_ms)}</div>
         </div>
@@ -303,6 +421,62 @@ export default function MonitorDetail() {
         <div className="metric-box">
           <div className="metric-box-label">Type</div>
           <div className="metric-box-val" style={{ fontSize: 14 }}>{MONITOR_TYPE_LABELS[monitor.type]}</div>
+        </div>
+      </div>
+
+      {/* Attractive Segmented Uptime Ribbon */}
+      <div className="uptime-strip-wrap">
+        <div className="uptime-strip-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Activity size={16} color="var(--green-400)" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--white-100)' }}>Live Availability & Uptime History</span>
+            <span style={{ fontSize: 11, color: 'var(--white-40)' }}>&bull; Past 40 Checks</span>
+          </div>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 11, color: 'var(--white-50)' }}>24h:</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: (monitor.uptime_24h ?? 100) >= 99 ? 'var(--green-400)' : 'var(--saffron-500)' }}>
+                {monitor.uptime_24h ?? monitor.uptime_pct ?? 100}%
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 11, color: 'var(--white-50)' }}>7d:</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: (monitor.uptime_7d ?? 100) >= 99 ? 'var(--green-400)' : 'var(--saffron-500)' }}>
+                {monitor.uptime_7d ?? 100}%
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 11, color: 'var(--white-50)' }}>30d:</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: (monitor.uptime_30d ?? 100) >= 99 ? 'var(--green-400)' : 'var(--saffron-500)' }}>
+                {monitor.uptime_30d ?? 100}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="uptime-bars-row">
+          {(checks && checks.length > 0 ? checks.slice(-40) : []).map((c, i) => {
+            const isUp = c.result === 'up';
+            const isDegraded = c.result === 'degraded';
+            const bg = isUp ? 'var(--green-500)' : isDegraded ? 'var(--saffron-500)' : 'var(--red-500)';
+            return (
+              <div 
+                key={i} 
+                className="uptime-bar-segment"
+                style={{ backgroundColor: bg }}
+                title={`${formatDateTime(c.checked_at)}: ${c.result.toUpperCase()} (${c.response_time_ms ?? 0}ms)${c.error_message ? ` - ${c.error_message}` : ''}`}
+              />
+            );
+          })}
+        </div>
+        <div className="uptime-legend">
+          <span>&larr; Older Checks</span>
+          <span style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--green-500)' }} /> Operational</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--saffron-500)' }} /> Degraded</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--red-500)' }} /> Outage</span>
+          </span>
+          <span>Latest Check &rarr;</span>
         </div>
       </div>
 
@@ -322,7 +496,7 @@ export default function MonitorDetail() {
                 <button className="btn btn-ghost btn-sm" onClick={() => copyAgentScript('python')}><Copy size={13}/> Copy Python (OLTs/SNMP)</button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30, marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--white-10)' }}>
+              <div className="grid-responsive-2" style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--white-10)' }}>
                 <div>
                   <h4 style={{ color: 'var(--white-100)', marginBottom: 8, fontSize: 14 }}>Linux Guide (Cron)</h4>
                   <ol style={{ paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -349,7 +523,7 @@ export default function MonitorDetail() {
                   </ol>
                 </div>
                 <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--white-10)', paddingTop: 20 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
+                  <div className="grid-responsive-2">
                     <div>
                       <h4 style={{ color: 'var(--white-100)', marginBottom: 8, fontSize: 14 }}>MikroTik RouterOS Native Guide</h4>
                       <ol style={{ paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -402,7 +576,7 @@ export default function MonitorDetail() {
                 </div>
               </div>
             )}
-            <div className="metric-strip" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            <div className="grid-responsive-3" style={{ marginBottom: 10 }}>
              <div className="metric-box">
                 <div className="metric-box-label">CPU Usage</div>
                 <div className="metric-box-val">{Number(sm.cpu_usage_pct).toFixed(1)}%</div>
@@ -430,7 +604,7 @@ export default function MonitorDetail() {
       })()}
 
       <div className="row-2">
-        <div className="panel">
+        <div id="monitor-chart-panel" className="panel">
           <div className="panel-head">
             <div>
               <div className="panel-title">Response Time History</div>
@@ -451,6 +625,22 @@ export default function MonitorDetail() {
             </div>
           </div>
           <div className="panel-body">
+            {checks && checks.length > 0 && (() => {
+              const validChecks = checks.filter(c => c.response_time_ms != null && c.response_time_ms > 0);
+              const minMs = validChecks.length > 0 ? Math.min(...validChecks.map(c => c.response_time_ms)) : 0;
+              const maxMs = validChecks.length > 0 ? Math.max(...validChecks.map(c => c.response_time_ms)) : 0;
+              const avgMs = validChecks.length > 0 ? Math.round(validChecks.reduce((a, b) => a + b.response_time_ms, 0) / validChecks.length) : (monitor.last_response_time_ms || 0);
+
+              return (
+                <div className="graph-stats-row">
+                  <div className="stat-tag">Min: <span className="val">{minMs}ms</span></div>
+                  <div className="stat-tag">Avg: <span className="val">{avgMs}ms</span></div>
+                  <div className="stat-tag">Max: <span className="val">{maxMs}ms</span></div>
+                  <div className="stat-tag">Points: <span className="val">{checks.length}</span></div>
+                </div>
+              );
+            })()}
+
             {checks === null ? (
               <Skeleton height={220} />
             ) : chartSeries[0].data.length === 0 ? (
@@ -662,7 +852,7 @@ export default function MonitorDetail() {
           onSuccess={() => { setActionModal(null); load(); }} 
         />
       )}
-    </>
+    </div>
   );
 }
 

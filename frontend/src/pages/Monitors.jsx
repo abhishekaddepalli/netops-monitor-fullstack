@@ -14,22 +14,31 @@ import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 
 function MiniUptimeGraph({ checks }) {
-  if (!checks || checks.length === 0) return <span style={{ color: 'var(--white-40)', fontSize: 12 }}>No data</span>;
+  if (!checks || checks.length === 0) return <span style={{ color: 'var(--white-40)', fontSize: 11, fontFamily: 'var(--font-mono)' }}>No history</span>;
   return (
-    <div style={{ display: 'flex', gap: 2, alignItems: 'center', height: 20, width: 100 }}>
-      {checks.map((c, i) => (
-        <div 
-          key={i} 
-          title={`${c.result} - ${c.response_time_ms}ms`}
-          style={{ 
-            flex: 1, 
-            backgroundColor: c.result === 'up' ? 'var(--success-color, #10b981)' : 'var(--danger-color, #ef4444)',
-            height: '100%',
-            borderRadius: 2,
-            opacity: c.result === 'up' ? 0.8 : 1
-          }} 
-        />
-      ))}
+    <div style={{ display: 'flex', gap: 2.5, alignItems: 'center', height: 18, width: 110 }} title="Recent Checks (Live)">
+      {checks.map((c, i) => {
+        const isUp = c.result === 'up';
+        const isDegraded = c.result === 'degraded';
+        const color = isUp ? '#10b981' : isDegraded ? '#f59e0b' : '#ef4444';
+        return (
+          <div 
+            key={i} 
+            title={`${c.result?.toUpperCase()} - ${c.response_time_ms ?? 0}ms`}
+            style={{ 
+              flex: 1, 
+              backgroundColor: color,
+              height: '100%',
+              borderRadius: 2,
+              opacity: isUp ? 0.85 : 1,
+              transition: 'transform 0.15s',
+              cursor: 'pointer'
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scaleY(1.3)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scaleY(1)'}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -184,6 +193,7 @@ export default function Monitors() {
             />
           </div>
         ) : (
+          <div className="table-responsive">
           <table className="data-table">
             <thead>
               <tr>
@@ -239,6 +249,7 @@ export default function Monitors() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

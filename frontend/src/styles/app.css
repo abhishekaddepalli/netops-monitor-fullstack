@@ -8,7 +8,23 @@
 .app-shell { display: grid; grid-template-columns: 248px 1fr; min-height: calc(100vh - 4px); }
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; }
-  .sidebar { display: none; }
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    height: 100vh !important;
+    width: 280px !important;
+    z-index: 1000 !important;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex !important;
+  }
+  .sidebar.open {
+    transform: translateX(0) !important;
+  }
+  .mobile-menu-btn { display: flex !important; }
+  .mobile-close-btn { display: flex !important; }
 }
 
 /* ===== Sidebar ===== */
@@ -300,6 +316,7 @@
 @media (max-width: 1100px) { .row-2 { grid-template-columns: 1fr; } }
 
 /* ===== Tables ===== */
+.panel:has(.data-table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--white-40); padding: 10px 20px; border-bottom: 1px solid var(--navy-border); }
 .data-table td { padding: 13px 20px; border-bottom: 1px solid var(--navy-border); vertical-align: middle; }
@@ -440,7 +457,7 @@
 .sp-overall { display: inline-flex; align-items: center; gap: 9px; padding: 9px 18px; border-radius: 30px; font-weight: 700; font-size: 14.5px; }
 .sp-overall svg { width: 18px; height: 18px; }
 .sp-body { padding: 28px 40px 36px; }
-.sp-component { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--navy-border); }
+.sp-component { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--navy-border); flex-wrap: wrap; gap: 8px; }
 .sp-component:last-child { border-bottom: none; }
 .sp-comp-name { font-weight: 600; font-size: 13.5px; }
 
@@ -631,147 +648,142 @@
 .usage-bar-fill.warn { background: var(--saffron-500); }
 .usage-bar-fill.danger { background: var(--red-500); }
 
-/* ==========================================================================
-   Print / Export Styles (Reports)
-   ========================================================================== */
-@media print {
-  /* Hide UI elements */
-  .sidebar, .topbar, .breadcrumb, .btn, .icon-btn, .icon-btn-sm, .detail-actions, .row-actions, .modal-overlay, .toast-stack {
-    display: none !important;
-  }
-  
-  /* Reset layout for full width printing */
-  .app-shell {
-    grid-template-columns: 1fr;
-    display: block;
-  }
-  .main-col, .content {
-    padding: 0 !important;
-    margin: 0 !important;
-  }
 
-  /* Force background colors to print */
-  * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
-  }
+/* ===== Enhanced Responsive Utilities & Graph Styling ===== */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-responsive::-webkit-scrollbar {
+  height: 6px;
+}
+.table-responsive::-webkit-scrollbar-thumb {
+  background: var(--navy-600);
+  border-radius: 4px;
+}
 
-  body {
-    background: #0B1929 !important; /* Ensure the dark theme prints as dark */
-  }
+/* Modern Segmented Uptime Bar */
+.uptime-strip-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--navy-900);
+  border: 1px solid var(--navy-border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+.uptime-strip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.uptime-pct-large {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--green-400);
+}
+.uptime-bars-row {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  height: 28px;
+  width: 100%;
+}
+.uptime-bar-segment {
+  flex: 1;
+  height: 100%;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
+}
+.uptime-bar-segment:hover {
+  transform: scaleY(1.2);
+  filter: brightness(1.25);
+  z-index: 5;
+}
+.uptime-legend {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--white-40);
+  margin-top: 4px;
+}
 
-  /* Adjust metric strip to fit nicely on paper */
-  .metric-strip {
-    grid-template-columns: repeat(5, 1fr) !important;
-    margin-bottom: 24px !important;
-    page-break-inside: avoid;
-  }
-  
-  .row-2 {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 24px !important;
-  }
+/* Metric Stats Pills for Graphs */
+.graph-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.stat-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--navy-800);
+  border: 1px solid var(--navy-border);
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  color: var(--white-80);
+}
+.stat-tag .val {
+  font-weight: 700;
+  color: var(--white-100);
+}
 
-  .panel {
-    break-inside: avoid;
-    page-break-inside: avoid;
-    border: 1px solid #1E2D4A !important;
-    margin-bottom: 24px !important;
-  }
+/* Responsive Grid helpers */
+.grid-responsive-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.grid-responsive-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
 
+@media (max-width: 992px) {
+  .grid-responsive-3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .grid-responsive-3, .grid-responsive-2 { grid-template-columns: 1fr; }
   .detail-header {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .detail-header > div:last-child {
+    justify-content: flex-start;
+  }
+  .metric-strip {
+    grid-template-columns: 1fr !important;
   }
 }
 
-.mobile-menu-btn, .mobile-close-btn { display: none; }
-@media (max-width: 768px) {
-  .app-shell { flex-direction: column; }
-  .sidebar { position: fixed; z-index: 1000; transform: translateX(-100%); transition: transform 0.3s; width: 280px; height: 100vh; }
-  .sidebar.open { transform: translateX(0); }
-  .mobile-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; }
-  .mobile-menu-btn { display: flex; margin-right: 15px; }
-  .mobile-close-btn { display: flex; }
-  .panel { overflow-x: auto; }
-  .form-group { width: 100%; }
-  .kpi-grid, .metric-strip { grid-template-columns: 1fr; }
-  .row-2 { grid-template-columns: 1fr; }
-  .data-table { min-width: 600px; }
+/* Diagnostic results full print/export container */
+#diagnostic-results-container {
+  width: 100%;
 }
-/* ==========================================================================
-   UI/UX Redesign Enhancements
-   ========================================================================== */
-@keyframes textShine { 0% { background-position: 0% 50%; } 100% { background-position: 100% 50%; } }
-@keyframes floatUp { 0% { transform: translateY(20px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
-.glass { background: var(--glass-bg) !important; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--glass-border); }
-
-.sidebar { background: var(--sidebar-bg) !important; backdrop-filter: blur(20px); }
-.btn, .feature-card, .pricing-card, .nav-item { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; }
-.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px var(--chakra-dim); }
-.feature-card:hover { transform: translateY(-6px) !important; box-shadow: 0 12px 32px rgba(0,0,0,0.4) !important; border-color: rgba(255,255,255,0.1) !important; }
-.pricing-card.popular { background: linear-gradient(180deg, rgba(37, 99, 235, 0.1) 0%, rgba(15, 32, 54, 0) 100%), var(--navy-900) !important; border: 2px solid var(--chakra-500) !important; box-shadow: 0 0 40px rgba(37, 99, 235, 0.2) !important; }
-.pricing-card:hover { transform: translateY(-8px) scale(1.02) !important; border-color: rgba(255,255,255,0.15); }
-.animated-gradient-text { background: linear-gradient(to right, #60a5fa, #c084fc, #60a5fa); background-size: 200% auto; color: #000; background-clip: text; text-fill-color: transparent; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: textShine 3s linear infinite; }
-.mesh-bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.15) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(192, 132, 252, 0.15) 0px, transparent 50%); z-index: -1; pointer-events: none; }
-.landing-nav.glass { background: var(--glass-bg) !important; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--glass-border); }
-.hero { padding-top: 180px !important; animation: floatUp 0.8s ease-out forwards; }
-@media (max-width: 768px) { .landing-nav { padding: 16px 24px !important; } .landing-nav .nav-links { display: none; } .landing-nav .mobile-toggle { display: block !important; } .hero-title { font-size: 40px !important; } .hero-subtitle { font-size: 16px !important; } .hero-actions { flex-direction: column; } .section-title { font-size: 32px !important; } .feature-grid { grid-template-columns: 1fr !important; } .pricing-grid { grid-template-columns: 1fr !important; } .mobile-menu-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(11, 25, 41, 0.95); backdrop-filter: blur(12px); z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; } }
-.mobile-toggle { display: none; background: transparent; border: none; color: white; cursor: pointer; }
-.dropdown-menu { background: var(--dropdown-bg) !important; backdrop-filter: blur(16px); border: 1px solid var(--glass-border); }
-.sidebar { overflow-y: auto; overflow-x: hidden; }
-
-.sidebar-scrollarea { flex: 1; overflow-y: auto; overflow-x: hidden; }
-.sidebar-scrollarea::-webkit-scrollbar { width: 4px; }
-.sidebar-scrollarea::-webkit-scrollbar-thumb { background: var(--navy-600); border-radius: 4px; }
-
-/* ApexCharts Light Mode Overrides */
-.apexcharts-menu {
-  background: var(--dropdown-bg) !important;
-  border: 1px solid var(--glass-border) !important;
-  color: var(--white-100) !important;
-}
-.apexcharts-theme-light .apexcharts-menu-icon svg {
-  fill: var(--white-100) !important;
-}
-.apexcharts-theme-dark .apexcharts-menu-icon svg {
-  fill: var(--white-100) !important;
-}
-.apexcharts-menu-item:hover {
-  background: var(--navy-700) !important;
-  color: #fff !important;
+.export-clean-wrap {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 24px !important;
+  border-radius: 12px !important;
+  border: 1px solid #1e293b !important;
+  width: 100% !important;
 }
 
-/* Mobile Topbar Fixes */
-@media (max-width: 768px) {
-  .topbar { flex-wrap: wrap; gap: 10px; padding: 12px 16px !important; }
-  .search-box { order: 10; min-width: 100%; margin-left: 0 !important; margin-top: 5px; }
-  .page-title { flex: 1; }
-}
-
-/* Mobile Sidebar Positioning Fix */
-@media (max-width: 768px) {
-  .sidebar { 
-    top: 0 !important; 
-    left: 0 !important; 
-    bottom: 0 !important; 
-    height: 100% !important; 
-    position: fixed !important; 
-  }
-}
-
-/* Mobile Topbar Single Row Fix */
-@media (max-width: 768px) {
-  .topbar { flex-wrap: nowrap !important; gap: 8px !important; }
-  .page-title { display: none !important; }
-  .search-box { order: 0 !important; min-width: 0 !important; width: 100% !important; margin-top: 0 !important; flex: 1 !important; }
-  .page-title { 
-    display: none !important; 
-  }
-  .search-box { order: 0 !important; min-width: 0 !important; width: 100% !important; margin-top: 0 !important; flex: 1 !important; }
-}
 
 /* ==========================================================================
    UptimeRobot Landing Page Theme

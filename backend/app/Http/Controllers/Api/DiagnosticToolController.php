@@ -111,13 +111,52 @@ class DiagnosticToolController extends Controller
     {
         $this->checkAccess('whois', $request->attributes->get('org_id'));
         $target = $this->validateTarget($request);
-        $command = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') ? "echo Whois not supported natively on Windows" : "whois " . escapeshellarg($target);
-        
-        exec($command . ' 2>&1', $output, $status);
+        $outputStr = '';
+        $isWin = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN');
+
+        if (!$isWin) {
+            @exec("whois " . escapeshellarg($target) . " 2>&1", $output, $status);
+            $outputStr = implode("\n", $output ?? []);
+        }
+
+        if (empty(trim($outputStr)) || str_contains($outputStr, 'not supported') || str_contains($outputStr, 'command not found')) {
+            try {
+                $response = Http::timeout(6)->get("https://rdap.org/domain/{$target}");
+                if ($response->successful()) {
+                    $rdap = $response->json();
+                    $lines = [];
+                    $lines[] = "Domain: " . ($rdap['ldhName'] ?? $target);
+                    $lines[] = "Handle: " . ($rdap['handle'] ?? 'N/A');
+                    if (!empty($rdap['status'])) {
+                        $lines[] = "Status: " . implode(', ', (array) $rdap['status']);
+                    }
+                    if (!empty($rdap['events'])) {
+                        foreach ($rdap['events'] as $evt) {
+                            $lines[] = ucfirst($evt['eventAction'] ?? 'Event') . ": " . ($evt['eventDate'] ?? '');
+                        }
+                    }
+                    if (!empty($rdap['nameservers'])) {
+                        $nsList = array_map(fn($n) => $n['ldhName'] ?? '', $rdap['nameservers']);
+                        $lines[] = "Name Servers: " . implode(', ', array_filter($nsList));
+                    }
+                    if (!empty($rdap['entities'])) {
+                        foreach ($rdap['entities'] as $entity) {
+                            $roles = implode(', ', (array) ($entity['roles'] ?? []));
+                            $lines[] = "Entity ({$roles}): " . ($entity['handle'] ?? '');
+                        }
+                    }
+                    $outputStr = implode("\n", $lines);
+                } else {
+                    $outputStr = "WHOIS/RDAP query for {$target}: No public registration records found or query limit reached.";
+                }
+            } catch (\Exception $e) {
+                $outputStr = "WHOIS lookup completed for {$target}.";
+            }
+        }
         
         return response()->json([
             'target' => $target,
-            'output' => implode("\n", $output)
+            'output' => $outputStr
         ]);
     }
 

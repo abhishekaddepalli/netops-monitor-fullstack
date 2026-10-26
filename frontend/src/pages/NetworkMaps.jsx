@@ -54,14 +54,18 @@ export default function NetworkMaps() {
 
   return (
     <div className="page-container">
-      <div className="page-header">
+      <div className="detail-header" style={{ marginBottom: 24 }}>
         <div>
-          <h1 className="page-title">Network Maps</h1>
-          <p className="page-subtitle">Interactive topologies of your infrastructure</p>
+          <div className="detail-title">Network Maps</div>
+          <div className="panel-sub" style={{ marginTop: 4 }}>
+            Visual network topologies &bull; NOC monitoring &bull; Live device connectivity
+          </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setIsCreating(true)}>
-          <Plus size={16} /> Create Map
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" onClick={() => setIsCreating(true)}>
+            <Plus size={16} /> Create Map
+          </button>
+        </div>
       </div>
 
       <div style={{ marginTop: 24 }}>
@@ -91,10 +95,15 @@ export default function NetworkMaps() {
                 <div style={{ padding: 24 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--navy-800)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-400)' }}>
-                        <Network size={20} />
+                      <div style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--navy-800)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-400)' }}>
+                        <Network size={22} />
                       </div>
-                      <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--white)' }}>{map.name}</h3>
+                      <div>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--white-100)', margin: 0 }}>{map.name}</h3>
+                        <div style={{ fontSize: 12, color: 'var(--white-50)', marginTop: 3 }}>
+                          {map.nodes_count ?? 0} Devices &bull; {map.links_count ?? 0} Links
+                        </div>
+                      </div>
                     </div>
                     <button 
                       onClick={(e) => handleDelete(e, map.id)}

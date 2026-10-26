@@ -103,6 +103,7 @@ export default function AlertChannels() {
             />
           </div>
         ) : (
+          <div className="table-responsive">
           <table className="data-table">
             <thead><tr><th>Name</th><th>Type</th><th>Status</th><th></th></tr></thead>
             <tbody>
@@ -131,6 +132,7 @@ export default function AlertChannels() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

@@ -29,22 +29,31 @@ const itemVariants = {
 };
 
 function MiniUptimeGraph({ checks }) {
-  if (!checks || checks.length === 0) return <span style={{ color: 'var(--white-40)', fontSize: 12 }}>No data</span>;
+  if (!checks || checks.length === 0) return <span style={{ color: 'var(--white-40)', fontSize: 11, fontFamily: 'var(--font-mono)' }}>No history</span>;
   return (
-    <div style={{ display: 'flex', gap: 2, alignItems: 'center', height: 20, width: 100 }}>
-      {checks.map((c, i) => (
-        <div 
-          key={i} 
-          title={`${c.result} - ${c.response_time_ms}ms`}
-          style={{ 
-            flex: 1, 
-            backgroundColor: c.result === 'up' ? 'var(--success-color, #10b981)' : 'var(--danger-color, #ef4444)',
-            height: '100%',
-            borderRadius: 2,
-            opacity: c.result === 'up' ? 0.8 : 1
-          }} 
-        />
-      ))}
+    <div style={{ display: 'flex', gap: 2.5, alignItems: 'center', height: 18, width: 110 }} title="Recent Checks (Live)">
+      {checks.map((c, i) => {
+        const isUp = c.result === 'up';
+        const isDegraded = c.result === 'degraded';
+        const color = isUp ? '#10b981' : isDegraded ? '#f59e0b' : '#ef4444';
+        return (
+          <div 
+            key={i} 
+            title={`${c.result?.toUpperCase()} - ${c.response_time_ms ?? 0}ms`}
+            style={{ 
+              flex: 1, 
+              backgroundColor: color,
+              height: '100%',
+              borderRadius: 2,
+              opacity: isUp ? 0.85 : 1,
+              transition: 'transform 0.15s',
+              cursor: 'pointer'
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scaleY(1.3)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scaleY(1)'}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -228,6 +237,22 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="panel-body">
+            {series && series.length > 0 && (() => {
+              const valid = series.filter(s => s.avg_ms != null && s.avg_ms > 0);
+              const minMs = valid.length > 0 ? Math.min(...valid.map(s => Math.round(s.avg_ms))) : 0;
+              const maxMs = valid.length > 0 ? Math.max(...valid.map(s => Math.round(s.avg_ms))) : 0;
+              const avgMs = valid.length > 0 ? Math.round(valid.reduce((a, b) => a + Number(b.avg_ms), 0) / valid.length) : 0;
+
+              return (
+                <div className="graph-stats-row">
+                  <div className="stat-tag">Min: <span className="val">{minMs}ms</span></div>
+                  <div className="stat-tag">Avg: <span className="val">{avgMs}ms</span></div>
+                  <div className="stat-tag">Max: <span className="val">{maxMs}ms</span></div>
+                  <div className="stat-tag">Range: <span className="val">{range === 1 ? 'Live (1h)' : range === 24 ? '24 Hours' : range === 168 ? '7 Days' : '30 Days'}</span></div>
+                </div>
+              );
+            })()}
+
             {series === null ? (
               <Skeleton height={240} />
             ) : series.length === 0 ? (
@@ -287,6 +312,7 @@ export default function Dashboard() {
             <EmptyState title="No monitors yet" subtitle="Create your first monitor to start tracking uptime." action={<Link to="/monitors" className="btn btn-primary btn-sm">Create monitor</Link>} />
           </div>
         ) : (
+          <div className="table-responsive">
           <table className="data-table">
             <thead>
               <tr>
@@ -338,6 +364,7 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </motion.div>
     </motion.div>
