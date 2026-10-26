@@ -35,13 +35,14 @@ function MiniUptimeGraph({ checks }) {
   return (
     <div style={{ display: 'flex', gap: 2.5, alignItems: 'center', height: 18, width: 110 }} title="Recent Checks (Live)">
       {checks.map((c, i) => {
-        const isUp = c.result === 'up';
-        const isDegraded = c.result === 'degraded';
+        const resStr = String(c?.result || (c?.response_time_ms != null && c.response_time_ms > 0 ? 'up' : 'unknown')).toLowerCase();
+        const isUp = resStr === 'up';
+        const isDegraded = resStr === 'degraded';
         const color = isUp ? '#10b981' : isDegraded ? '#f59e0b' : '#ef4444';
         return (
           <div 
             key={i} 
-            title={`${c.result?.toUpperCase()} - ${c.response_time_ms ?? 0}ms`}
+            title={`${resStr.toUpperCase()} - ${c?.response_time_ms ?? 0}ms`}
             style={{ 
               flex: 1, 
               backgroundColor: color,

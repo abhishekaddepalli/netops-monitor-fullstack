@@ -347,7 +347,8 @@ class MonitorController extends Controller
                 ->get()
                 ->map(fn ($r) => [
                     'checked_at' => $r->hour_bucket,
-                    'response_time_ms' => $r->avg_response_time_ms
+                    'response_time_ms' => $r->avg_response_time_ms,
+                    'result' => ($r->down_checks > 0 && $r->up_checks === 0) ? 'down' : (($r->degraded_checks > 0 || $r->down_checks > 0) ? 'degraded' : 'up'),
                 ]);
         } elseif ($range === '3d') {
             $data = $monitor->hourlyRollups()
@@ -356,7 +357,8 @@ class MonitorController extends Controller
                 ->get()
                 ->map(fn ($r) => [
                     'checked_at' => $r->hour_bucket,
-                    'response_time_ms' => $r->avg_response_time_ms
+                    'response_time_ms' => $r->avg_response_time_ms,
+                    'result' => ($r->down_checks > 0 && $r->up_checks === 0) ? 'down' : (($r->degraded_checks > 0 || $r->down_checks > 0) ? 'degraded' : 'up'),
                 ]);
         } elseif ($range === '7d') {
             $data = $monitor->hourlyRollups()
@@ -365,7 +367,8 @@ class MonitorController extends Controller
                 ->get()
                 ->map(fn ($r) => [
                     'checked_at' => $r->hour_bucket,
-                    'response_time_ms' => $r->avg_response_time_ms
+                    'response_time_ms' => $r->avg_response_time_ms,
+                    'result' => ($r->down_checks > 0 && $r->up_checks === 0) ? 'down' : (($r->degraded_checks > 0 || $r->down_checks > 0) ? 'degraded' : 'up'),
                 ]);
         } elseif ($range === '30d' || $range === '1m') {
             $data = $monitor->dailyRollups()
@@ -374,7 +377,8 @@ class MonitorController extends Controller
                 ->get()
                 ->map(fn ($r) => [
                     'checked_at' => $r->day_bucket,
-                    'response_time_ms' => $r->avg_response_time_ms
+                    'response_time_ms' => $r->avg_response_time_ms,
+                    'result' => ($r->down_checks > 0 && $r->up_checks === 0) ? 'down' : (($r->degraded_checks > 0 || $r->down_checks > 0) ? 'degraded' : 'up'),
                 ]);
         } else {
             $data = collect();
@@ -410,7 +414,8 @@ class MonitorController extends Controller
             if ($rawPoints->isNotEmpty()) {
                 $data = $rawPoints->map(fn ($r) => [
                     'checked_at' => $r->bucket,
-                    'response_time_ms' => round($r->avg_ms, 1)
+                    'response_time_ms' => round($r->avg_ms, 1),
+                    'result' => 'up',
                 ]);
             } else {
                 $data = $monitor->checks()
@@ -421,7 +426,9 @@ class MonitorController extends Controller
                     ->values()
                     ->map(fn ($c) => [
                         'checked_at' => $c->checked_at,
-                        'response_time_ms' => $c->response_time_ms
+                        'response_time_ms' => $c->response_time_ms,
+                        'result' => $c->result ?? 'up',
+                        'error_message' => $c->error_message ?? null,
                     ]);
             }
 
@@ -430,8 +437,8 @@ class MonitorController extends Controller
                 $timeStr = is_string($timePoint) ? $timePoint : $timePoint->toDateTimeString();
                 $prevTime = date('Y-m-d H:i:s', strtotime($timeStr) - 3600);
                 $data = collect([
-                    ['checked_at' => $prevTime, 'response_time_ms' => $monitor->last_response_time_ms],
-                    ['checked_at' => $timeStr, 'response_time_ms' => $monitor->last_response_time_ms],
+                    ['checked_at' => $prevTime, 'response_time_ms' => $monitor->last_response_time_ms, 'result' => $monitor->status ?? 'up'],
+                    ['checked_at' => $timeStr, 'response_time_ms' => $monitor->last_response_time_ms, 'result' => $monitor->status ?? 'up'],
                 ]);
             }
 
@@ -439,7 +446,7 @@ class MonitorController extends Controller
                 $single = $data->first();
                 $prevTime = date('Y-m-d H:i:s', strtotime($single['checked_at']) - 900);
                 $data = collect([
-                    ['checked_at' => $prevTime, 'response_time_ms' => $single['response_time_ms']],
+                    ['checked_at' => $prevTime, 'response_time_ms' => $single['response_time_ms'], 'result' => $single['result'] ?? 'up'],
                     $single,
                 ]);
             }

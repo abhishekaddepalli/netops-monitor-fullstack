@@ -139,7 +139,7 @@ export default function NetworkTools() {
             NetOps Monitor — Diagnostic Report
           </div>
           <div style="font-size: 13px; color: #94a3b8;">
-            Diagnostic: <strong style="color: #f1f5f9; font-weight: 700;">${activeToolDef?.name || activeTool.toUpperCase()}</strong> &nbsp;|&nbsp; 
+            Diagnostic: <strong style="color: #f1f5f9; font-weight: 700;">${activeToolDef?.name || activeTool?.toUpperCase() || 'DIAGNOSTIC'}</strong> &nbsp;|&nbsp; 
             Target: <strong style="color: #38bdf8; font-family: monospace;">${target}</strong>
           </div>
         </div>

@@ -212,7 +212,7 @@ export default function Billing() {
         ) : (
           plans.map((plan) => {
             const price = billingCycle === 'monthly' ? plan.price_inr_monthly : (billingCycle === 'half_yearly' ? plan.price_inr_half_yearly : plan.price_inr_yearly);
-            const isRecommended = plan.name.toLowerCase().includes('pro') || plan.name.toLowerCase().includes('starter');
+            const isRecommended = (plan?.name || '').toLowerCase().includes('pro') || (plan?.name || '').toLowerCase().includes('starter');
             
             return (
               <div key={plan.id} style={{ 

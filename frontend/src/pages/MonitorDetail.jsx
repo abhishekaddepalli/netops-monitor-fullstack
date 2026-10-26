@@ -32,7 +32,8 @@ export default function MonitorDetail() {
   const toast = useToast();
   const { isOperatorOrAbove } = useAuth();
   const [monitor, setMonitor] = useState(null);
-  const [checks, setChecks] = useState(null);
+  const [recentChecks, setRecentChecks] = useState(null);
+  const [chartChecks, setChartChecks] = useState(null);
   const [incidents, setIncidents] = useState(null);
   const [testing, setTesting] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -53,21 +54,29 @@ export default function MonitorDetail() {
   useEffect(() => {
     const fetchAll = () => {
       load();
+      // Always fetch actual recent checks for the uptime bars and server metrics
+      (async () => {
+        try {
+          const { data } = await monitorsApi.checks(id, { per_page: 50 });
+          setRecentChecks((data?.data || []).slice().reverse());
+        } catch { setRecentChecks([]); }
+      })();
+      // Fetch chart checks according to selected time range
       (async () => {
         try {
           if (chartRange === 'live') {
             const { data } = await monitorsApi.checks(id, { per_page: 200 });
-            setChecks((data.data || []).slice().reverse());
+            setChartChecks((data?.data || []).slice().reverse());
           } else {
             const { data } = await monitorsApi.chartData(id, chartRange);
-            setChecks(data.data || []);
+            setChartChecks(data?.data || []);
           }
-        } catch { setChecks([]); }
+        } catch { setChartChecks([]); }
       })();
       (async () => {
         try {
           const { data } = await incidentsApi.list({ per_page: 10 });
-          setIncidents((data.data || []).filter((inc) => inc.monitor_id === Number(id)));
+          setIncidents((data?.data || []).filter((inc) => inc.monitor_id === Number(id)));
         } catch { setIncidents([]); }
       })();
     };
@@ -80,8 +89,9 @@ export default function MonitorDetail() {
     setTesting(true);
     try {
       const { data } = await monitorsApi.test(id);
-      toast[data.result === 'up' ? 'success' : 'error'](
-        `Test result: ${data.result.toUpperCase()}${data.response_time_ms ? ` (${data.response_time_ms}ms)` : ''}${data.error_message ? ` — ${data.error_message}` : ''}`
+      const res = String(data?.result || 'UNKNOWN').toUpperCase();
+      toast[res === 'UP' ? 'success' : 'error'](
+        `Test result: ${res}${data?.response_time_ms ? ` (${data.response_time_ms}ms)` : ''}${data?.error_message ? ` — ${data.error_message}` : ''}`
       );
     } catch (error) {
       toast.error(apiErrorMessage(error, 'Test failed.'));
@@ -246,10 +256,10 @@ export default function MonitorDetail() {
     return isNaN(d.getTime()) ? new Date(str).getTime() : d.getTime();
   };
 
-  let chartPoints = (checks || [])
+  let chartPoints = (chartChecks || [])
     .map((c) => {
-      const ts = parseTimestamp(c.checked_at);
-      const ms = c.response_time_ms == null ? 0 : Math.round(c.response_time_ms);
+      const ts = parseTimestamp(c?.checked_at);
+      const ms = c?.response_time_ms == null ? 0 : Math.round(c.response_time_ms);
       return [ts, ms];
     })
     .filter((p) => !isNaN(p[0]));
@@ -358,7 +368,7 @@ export default function MonitorDetail() {
     if (!Array.isArray(monitored)) {
       // If it wasn't set, default to all CURRENT interfaces so we don't break backward compat,
       // but the user is explicitly toggling one, so we build the list first.
-      const sm = checks.find(c => c.metrics && c.metrics.interfaces)?.metrics;
+      const sm = (recentChecks || []).find(c => c?.metrics && c.metrics.interfaces)?.metrics;
       const allIfaces = (sm?.interfaces || []).filter(i => i.name !== '__sys_info__').map(i => i.name);
       monitored = allIfaces;
     }
@@ -396,7 +406,12 @@ export default function MonitorDetail() {
           <div>
             <div className="detail-title">{monitor.name}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-              <StatusPill status={monitor.status} label={monitor.status === 'down' || monitor.status === 'degraded' ? `${monitor.status.toUpperCase()} — ${timeAgo(monitor.status_since).replace(' ago', '')}` : undefined} />
+              <StatusPill 
+                status={monitor.status} 
+                label={monitor.status === 'down' || monitor.status === 'degraded' 
+                  ? `${String(monitor.status || '').toUpperCase()} — ${timeAgo(monitor.status_since).replace(' ago', '')}` 
+                  : undefined} 
+              />
               <span className="mon-url" style={{ color: 'var(--white-40)' }}>{monitor.target}{monitor.port ? `:${monitor.port}` : ''}</span>
             </div>
           </div>
@@ -443,7 +458,7 @@ export default function MonitorDetail() {
         <div className="metric-box">
           <div className="metric-box-label">Status</div>
           <div className="metric-box-val" style={{ color: monitor.status === 'down' ? 'var(--red-400)' : monitor.status === 'degraded' ? 'var(--saffron-500)' : 'var(--green-400)' }}>
-            {monitor.status.charAt(0).toUpperCase() + monitor.status.slice(1)}
+            {monitor.status ? (monitor.status.charAt(0).toUpperCase() + monitor.status.slice(1)) : 'Unknown'}
           </div>
         </div>
         <div className="metric-box">
@@ -501,16 +516,18 @@ export default function MonitorDetail() {
         </div>
 
         <div className="uptime-bars-row">
-          {(checks && checks.length > 0 ? checks.slice(-40) : []).map((c, i) => {
-            const isUp = c.result === 'up';
-            const isDegraded = c.result === 'degraded';
+          {(recentChecks && recentChecks.length > 0 ? recentChecks.slice(-40) : []).map((c, i) => {
+            const rawRes = c?.result || (c?.response_time_ms != null && c.response_time_ms > 0 ? 'up' : monitor?.status || 'up');
+            const resStr = String(rawRes).toLowerCase();
+            const isUp = resStr === 'up';
+            const isDegraded = resStr === 'degraded';
             const bg = isUp ? 'var(--green-500)' : isDegraded ? 'var(--saffron-500)' : 'var(--red-500)';
             return (
               <div 
                 key={i} 
                 className="uptime-bar-segment"
                 style={{ backgroundColor: bg }}
-                title={`${formatDateTime(c.checked_at)}: ${c.result.toUpperCase()} (${c.response_time_ms ?? 0}ms)${c.error_message ? ` - ${c.error_message}` : ''}`}
+                title={`${formatDateTime(c.checked_at)}: ${resStr.toUpperCase()} (${c.response_time_ms ?? 0}ms)${c.error_message ? ` - ${c.error_message}` : ''}`}
               />
             );
           })}
@@ -671,23 +688,23 @@ export default function MonitorDetail() {
             </div>
           </div>
           <div className="panel-body">
-            {checks && checks.length > 0 && (() => {
-              const validChecks = checks.filter(c => c.response_time_ms != null && c.response_time_ms > 0);
+            {chartChecks && chartChecks.length > 0 && (() => {
+              const validChecks = chartChecks.filter(c => c && c.response_time_ms != null && c.response_time_ms > 0);
               const minMs = validChecks.length > 0 ? Math.min(...validChecks.map(c => c.response_time_ms)) : 0;
               const maxMs = validChecks.length > 0 ? Math.max(...validChecks.map(c => c.response_time_ms)) : 0;
-              const avgMs = validChecks.length > 0 ? Math.round(validChecks.reduce((a, b) => a + b.response_time_ms, 0) / validChecks.length) : (monitor.last_response_time_ms || 0);
+              const avgMs = validChecks.length > 0 ? Math.round(validChecks.reduce((a, b) => a + b.response_time_ms, 0) / validChecks.length) : (monitor?.last_response_time_ms || 0);
 
               return (
                 <div className="graph-stats-row">
                   <div className="stat-tag">Min: <span className="val">{minMs}ms</span></div>
                   <div className="stat-tag">Avg: <span className="val">{avgMs}ms</span></div>
                   <div className="stat-tag">Max: <span className="val">{maxMs}ms</span></div>
-                  <div className="stat-tag">Points: <span className="val">{checks.length}</span></div>
+                  <div className="stat-tag">Points: <span className="val">{chartChecks.length}</span></div>
                 </div>
               );
             })()}
 
-            {checks === null ? (
+            {chartChecks === null ? (
               <Skeleton height={220} />
             ) : chartSeries[0].data.length === 0 ? (
               <EmptyState title="No check data yet" subtitle="Data will appear once this monitor has run." />
