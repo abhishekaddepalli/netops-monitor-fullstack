@@ -12,7 +12,7 @@ export default function SoundControlBar({ compact = false }) {
   } = useSoundContext();
 
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
       {/* Prominent STOP SOUND / SILENCE ALARM Button (Visible whenever alarm is sounding) */}
       {isPlaying && (
         <button

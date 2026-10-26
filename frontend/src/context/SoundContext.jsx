@@ -6,14 +6,21 @@ const SoundContext = createContext(null);
 export const SOUND_PRESETS = {
   down: [
     { id: 'siren', label: 'Emergency Siren', description: 'Sweeping dual-tone oscillating siren' },
-    { id: 'klaxon', label: 'Klaxon Warning', description: 'Rapid dual-pitch horn alert' },
-    { id: 'beep', label: 'Urgent Triple Beep', description: 'High-priority pulsating beeps' },
-    { id: 'alarm', label: 'Pulsing Alarm', description: 'Classic rising frequency alert' },
+    { id: 'klaxon', label: 'Naval Klaxon', description: 'Rapid dual-pitch naval horn alert' },
+    { id: 'beep', label: 'Urgent Triple Beep', description: 'High-priority pulsating triple warning' },
+    { id: 'alarm', label: 'Pulsing Alarm', description: 'Classic rising frequency sawtooth alert' },
+    { id: 'radar', label: 'Submarine Sonar', description: 'Deep echoing naval ping pulse' },
+    { id: 'critical', label: 'Sci-Fi Red Alert', description: '4-phase starship red alert klaxon' },
+    { id: 'cyber', label: 'Cyber Strobe', description: 'Fast arpeggiated electronic beacon' },
+    { id: 'buzzer', label: 'Industrial Buzzer', description: 'Harsh low-frequency electric hazard tone' },
   ],
   up: [
     { id: 'chime', label: 'Crystal Chime', description: 'Ascending 3-tone harmonic chime' },
-    { id: 'bell', label: 'Elevator Bell', description: 'High crisp dual-tone ding' },
+    { id: 'bell', label: 'Elevator Bell', description: 'High crisp dual-tone bell chime' },
     { id: 'ding', label: 'Acoustic Ding', description: 'Warm harmonic recovery tone' },
+    { id: 'marimba', label: 'Bright Marimba', description: 'Lively 4-note upbeat xylophone' },
+    { id: 'success', label: 'Mission Success', description: 'Triumphant major-triad brass fanfare' },
+    { id: 'harp', label: 'Ethereal Harp', description: 'Gentle cascading celestial arpeggio' },
   ],
 };
 
