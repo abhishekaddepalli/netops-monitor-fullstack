@@ -15,6 +15,7 @@ class SettingsController extends Controller
         if (Storage::exists('global_settings.json')) {
             $settings = json_decode(Storage::get('global_settings.json'), true);
         }
+        $settings['default_google_redirect_uri'] = url('/api/v1/auth/google/callback');
         return response()->json($settings);
     }
 
@@ -28,7 +29,9 @@ class SettingsController extends Controller
         $data = $request->only([
             'stripe_key', 'stripe_secret', 'razorpay_key', 'razorpay_secret', 'upi_id', 'upi_qr_url', 'log_retention_days',
             'app_name', 'primary_color', 'custom_css', 'timezone', 'time_format',
-            'company_name', 'company_address', 'company_gst', 'invoice_prefix'
+            'company_name', 'company_address', 'company_gst', 'invoice_prefix',
+            'google_oauth_enabled', 'google_client_id', 'google_client_secret', 'google_redirect_uri',
+            'enforce_2fa'
         ]);
 
         if ($request->hasFile('app_logo')) {
@@ -70,6 +73,9 @@ class SettingsController extends Controller
             'time_format' => $settings['time_format'] ?? '24h',
             'upi_id' => $settings['upi_id'] ?? null,
             'upi_qr_url' => $settings['upi_qr_url'] ?? null,
+            'google_oauth_enabled' => !empty($settings['google_oauth_enabled']) && !empty($settings['google_client_id']),
+            'google_client_id' => !empty($settings['google_oauth_enabled']) ? ($settings['google_client_id'] ?? null) : null,
+            'enforce_2fa' => !empty($settings['enforce_2fa']),
         ]);
     }
 }

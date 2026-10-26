@@ -23,7 +23,7 @@ class AlertChannelController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'in:email,sms,whatsapp,telegram,slack,discord,teams,webhook,push'],
+            'type' => ['required', 'in:email,sms,whatsapp,telegram,slack,discord,teams,webhook,push,wirepusher'],
             'config' => ['required', 'array'],
         ]);
 
@@ -61,10 +61,11 @@ class AlertChannelController extends Controller
             $sender = AlertSenderFactory::make($alertChannel->type);
             $fakeIncident = new Incident([
                 'title' => 'Test alert from NetOps Monitor (Global)',
-                'severity' => 'minor',
+                'severity' => 'critical',
                 'started_at' => now(),
+                'root_cause' => 'Synthetic health probe check: Ping latency exceeded 120ms threshold',
             ]);
-            $fakeIncident->setRelation('monitor', new Monitor(['name' => 'System Test Monitor', 'target' => 'https://platform.com']));
+            $fakeIncident->setRelation('monitor', new Monitor(['name' => 'System Test Monitor', 'type' => 'https', 'target' => 'https://platform.com', 'check_interval_seconds' => 60]));
 
             $sender->send($alertChannel, $fakeIncident, 'down');
 

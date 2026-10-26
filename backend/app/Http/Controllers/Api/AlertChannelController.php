@@ -28,7 +28,7 @@ class AlertChannelController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'in:email,sms,whatsapp,telegram,slack,discord,teams,webhook,push'],
+            'type' => ['required', 'in:email,sms,whatsapp,telegram,slack,discord,teams,webhook,push,wirepusher'],
             'config' => ['required', 'array'],
         ]);
         if ($validator->fails()) {
@@ -68,12 +68,13 @@ class AlertChannelController extends Controller
                 'title' => 'Test alert from NetOps Monitor',
                 'severity' => 'critical',
                 'started_at' => now(),
+                'root_cause' => 'Synthetic health probe check: Ping latency exceeded 120ms threshold',
                 'error_message' => 'Connection timed out after 5.00 seconds',
             ]);
             $fakeMonitor = new Monitor([
-                'name' => 'Primary Gateway (Test)',
-                'type' => 'ping',
-                'target' => '192.168.1.1',
+                'name' => 'Primary Edge Gateway (Test)',
+                'type' => 'https',
+                'target' => 'https://example.com',
                 'check_interval_seconds' => 60,
                 'config' => [],
             ]);

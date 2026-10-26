@@ -88,6 +88,12 @@ class TemplateParser
             return str_replace(array_keys($replacements), array_values($replacements), $template->content);
         }
 
+        // Return expert recommended default template for this channel and event
+        $defaultContent = NotificationTemplateDefaults::getDefault($channelType, $event);
+        if ($defaultContent) {
+            return str_replace(array_keys($replacements), array_values($replacements), $defaultContent);
+        }
+
         // Otherwise, return fallback template
         $isDown = $event === 'down';
         

@@ -3,12 +3,13 @@ import { apiClient, apiErrorMessage } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import Skeleton from '../components/ui/Skeleton';
 import Modal from '../components/ui/Modal';
-import { CreditCard, CheckCircle, Upload } from 'lucide-react';
+import { CreditCard, CheckCircle, Upload, Receipt, FileText, ExternalLink, Clock } from 'lucide-react';
 
 export default function Billing() {
   const toast = useToast();
   const [plans, setPlans] = useState(null);
   const [currentSub, setCurrentSub] = useState(null);
+  const [invoices, setInvoices] = useState(null);
   const [settings, setSettings] = useState(null);
   const [showCheckout, setShowCheckout] = useState(null); // stores the plan to checkout
   const [submitting, setSubmitting] = useState(false);
@@ -17,13 +18,19 @@ export default function Billing() {
   const [utrNumber, setUtrNumber] = useState('');
   const [receiptFile, setReceiptFile] = useState(null);
 
-  useEffect(() => {
+  const loadData = () => {
     // Fetch public plans
     apiClient.get('/plans').then(({ data }) => setPlans(data)).catch(() => {});
     // Fetch current subscription
     apiClient.get('/v1/billing/current').then(({ data }) => setCurrentSub(data.subscription)).catch(() => {});
+    // Fetch organization invoices
+    apiClient.get('/v1/billing/invoices').then(({ data }) => setInvoices(data || [])).catch(() => setInvoices([]));
     // Fetch settings to get UPI info
     apiClient.get('/global-settings').then(({ data }) => setSettings(data)).catch(() => {});
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -64,12 +71,19 @@ export default function Billing() {
         const { razorpay_order_id, razorpay_key } = res.data;
         if (!razorpay_key) throw new Error('Razorpay is not configured on the server.');
 
+        let calculatedPrice = showCheckout.price_inr_monthly;
+        if (billingCycle === 'half_yearly') {
+          calculatedPrice = showCheckout.price_inr_half_yearly || (showCheckout.price_inr_monthly * 6);
+        } else if (billingCycle === 'yearly') {
+          calculatedPrice = showCheckout.price_inr_yearly || (showCheckout.price_inr_monthly * 12);
+        }
+
         const options = {
           key: razorpay_key,
-          amount: showCheckout.price_inr_monthly * 100,
+          amount: calculatedPrice * 100,
           currency: 'INR',
           name: 'NetOps Monitor',
-          description: `Subscription to ${showCheckout.name}`,
+          description: `Subscription to ${showCheckout.name} (${billingCycle})`,
           order_id: razorpay_order_id,
           handler: async function (response) {
             try {
@@ -80,7 +94,7 @@ export default function Billing() {
               });
               toast.success('Payment successful! Subscription activated.');
               setShowCheckout(null);
-              apiClient.get('/v1/billing/current').then(({ data }) => setCurrentSub(data.subscription));
+              loadData();
             } catch (err) {
               toast.error('Payment verification failed.');
             }
@@ -90,7 +104,7 @@ export default function Billing() {
             ondismiss: async function() {
               try {
                 await apiClient.post('/v1/billing/cancel-draft');
-                apiClient.get('/v1/billing/current').then(({ data }) => setCurrentSub(data.subscription));
+                loadData();
               } catch (e) {}
             }
           }
@@ -100,14 +114,14 @@ export default function Billing() {
           toast.error('Payment failed.');
           try {
             await apiClient.post('/v1/billing/cancel-draft');
-            apiClient.get('/v1/billing/current').then(({ data }) => setCurrentSub(data.subscription));
+            loadData();
           } catch (e) {}
         });
         rzp.open();
       } else {
         toast.success(method === 'upi' ? 'Invoice generated! Pending admin approval.' : 'Subscription successful!');
         setShowCheckout(null);
-        apiClient.get('/v1/billing/current').then(({ data }) => setCurrentSub(data.subscription));
+        loadData();
       }
     } catch (error) {
       toast.error(apiErrorMessage(error));
@@ -255,6 +269,92 @@ export default function Billing() {
             );
           })
         )}
+      </div>
+
+      {/* Invoices & Payment History */}
+      <div className="panel" style={{ marginTop: 20, marginBottom: 40 }}>
+        <div className="panel-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Receipt size={18} color="var(--primary-400)" /> Invoices & Payment History
+            </div>
+            <div className="panel-sub">Receipts and transaction records for your organization</div>
+          </div>
+        </div>
+        <div className="panel-body">
+          {invoices === null ? (
+            <Skeleton height={140} />
+          ) : invoices.length === 0 ? (
+            <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--white-60)' }}>
+              <FileText size={32} style={{ margin: '0 auto 12px auto', opacity: 0.5 }} />
+              <div>No invoices found yet. When you upgrade or renew, your receipts will appear here.</div>
+            </div>
+          ) : (
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Invoice #</th>
+                    <th>Plan & Cycle</th>
+                    <th>Amount</th>
+                    <th>Payment Method / Ref</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Receipt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((inv) => {
+                    const isPaid = inv.status === 'paid';
+                    const isOpen = inv.status === 'open';
+                    return (
+                      <tr key={inv.id}>
+                        <td style={{ fontFamily: 'monospace', fontWeight: 600, color: '#38bdf8' }}>
+                          {inv.invoice_number || `INV-${inv.id}`}
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{inv.subscription?.plan?.name || 'Subscription'}</div>
+                          <div style={{ fontSize: 12, color: 'var(--white-50)', textTransform: 'capitalize' }}>
+                            {inv.subscription?.billing_cycle || 'Monthly'}
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 700, fontSize: 15 }}>
+                          ₹{inv.amount}
+                        </td>
+                        <td style={{ fontSize: 13, fontFamily: 'monospace' }}>
+                          {inv.provider_invoice_id || inv.subscription?.billing_provider || '—'}
+                        </td>
+                        <td style={{ fontSize: 13, color: 'var(--white-70)' }}>
+                          {inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : new Date(inv.created_at).toLocaleDateString()}
+                        </td>
+                        <td>
+                          <span className={`pill ${isPaid ? 'pill-up' : isOpen ? 'pill-paused' : 'pill-down'}`}>
+                            {isPaid ? 'Paid' : isOpen ? 'Pending Approval' : inv.status}
+                          </span>
+                        </td>
+                        <td>
+                          {inv.receipt_path ? (
+                            <a 
+                              href={`/storage/${inv.receipt_path}`} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="btn btn-sm btn-ghost"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <ExternalLink size={13} /> View File
+                            </a>
+                          ) : (
+                            <span style={{ color: 'var(--white-40)', fontSize: 12 }}>Auto</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {showCheckout && (

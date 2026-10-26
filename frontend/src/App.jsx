@@ -40,6 +40,7 @@ import AdminApiDocs from './pages/AdminApiDocs';
 import AdminSettings from './pages/AdminSettings';
 import AdminServerHealth from './pages/AdminServerHealth';
 import ApiDocs from './pages/ApiDocs';
+import AuthCallback from './pages/AuthCallback';
 import NotFound from './pages/NotFound';
 
 const TITLES = {
@@ -79,6 +80,7 @@ export default function App() {
                 <Route path="/" element={<Landing />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
 
                 {/* Public status page — no auth, no app shell */}
                 <Route path="/status/:slug" element={<PublicStatusPage />} />

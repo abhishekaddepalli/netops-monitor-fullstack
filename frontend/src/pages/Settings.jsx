@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Shield, Key, Mail, Building, Bell, User } from 'lucide-react';
+import { Shield, Key, Mail, Building, Bell, User, Copy, Check, Download, RefreshCw, AlertTriangle, CheckCircle2, Lock } from 'lucide-react';
 import { apiErrorMessage } from '../api/client';
 import Modal from '../components/ui/Modal';
 import { useToast } from '../context/ToastContext';
@@ -9,7 +9,7 @@ import { organizationsApi } from '../api/organizations';
 
 export default function Settings() {
   const toast = useToast();
-  const { user, organization, isOrgAdmin } = useAuth();
+  const { user, organization, isOrgAdmin, refresh } = useAuth();
   const [showEditOrg, setShowEditOrg] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [show2FA, setShow2FA] = useState(false);
@@ -95,7 +95,7 @@ export default function Settings() {
       </div>
 
       {show2FA && (
-        <TwoFactorModal user={user} onClose={() => setShow2FA(false)} />
+        <TwoFactorModal user={user} onClose={() => setShow2FA(false)} onRefresh={refresh} />
       )}
 
       {showEditOrg && (
@@ -118,35 +118,385 @@ function Row({ label, value, capitalize }) {
   );
 }
 
-function TwoFactorModal({ user, onClose }) {
+function TwoFactorModal({ user, onClose, onRefresh }) {
   const toast = useToast();
+  const [loading, setLoading] = useState(!user?.two_factor_enabled);
+  const [setupData, setSetupData] = useState(null);
+  const [code, setCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedCodes, setCopiedCodes] = useState(false);
   
-  // As this is a frontend-only mock representation for the user's request:
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    toast.error('2FA backend endpoints are currently being provisioned. Please try again later.');
-    onClose();
+  // Disable mode states
+  const [disableMode, setDisableMode] = useState(false);
+  const [disablePassword, setDisablePassword] = useState('');
+  const [disableCode, setDisableCode] = useState('');
+  
+  // Recovery codes view mode
+  const [viewingRecovery, setViewingRecovery] = useState(false);
+  const [recoveryCodes, setRecoveryCodes] = useState([]);
+  const [loadingRecovery, setLoadingRecovery] = useState(false);
+
+  useEffect(() => {
+    if (!user?.two_factor_enabled) {
+      loadSetupData();
+    }
+  }, [user]);
+
+  async function loadSetupData() {
+    setLoading(true);
+    try {
+      const { data } = await authApi.setup2Fa();
+      setSetupData(data);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not initiate 2FA setup.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleEnable(e) {
+    if (e) e.preventDefault();
+    if (!code || code.trim().length < 6) {
+      return toast.error('Please enter the 6-digit verification code from your authenticator app.');
+    }
+    setSubmitting(true);
+    try {
+      await authApi.enable2Fa(code.trim());
+      toast.success('Two-Factor Authentication has been successfully activated!');
+      if (onRefresh) await onRefresh();
+      onClose();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to verify 2FA code.'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDisable(e) {
+    if (e) e.preventDefault();
+    if (!disablePassword && !disableCode) {
+      return toast.error('Please enter your account password or a 2FA code.');
+    }
+    setSubmitting(true);
+    try {
+      await authApi.disable2Fa({ password: disablePassword, code: disableCode });
+      toast.success('Two-Factor Authentication has been disabled.');
+      if (onRefresh) await onRefresh();
+      onClose();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to disable 2FA.'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleLoadRecoveryCodes(regenerate = false) {
+    setLoadingRecovery(true);
+    try {
+      const { data } = await authApi.getRecoveryCodes(regenerate);
+      setRecoveryCodes(data.recovery_codes || []);
+      setViewingRecovery(true);
+      if (regenerate) {
+        toast.success('New recovery codes generated.');
+      }
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not load recovery codes.'));
+    } finally {
+      setLoadingRecovery(false);
+    }
+  }
+
+  const handleCopyKey = () => {
+    if (setupData?.secret) {
+      navigator.clipboard.writeText(setupData.secret);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 2000);
+      toast.success('Secret key copied to clipboard.');
+    }
   };
 
+  const handleCopyCodes = (codes) => {
+    if (codes && codes.length) {
+      navigator.clipboard.writeText(codes.join('\n'));
+      setCopiedCodes(true);
+      setTimeout(() => setCopiedCodes(false), 2000);
+      toast.success('Recovery codes copied to clipboard.');
+    }
+  };
+
+  const handleDownloadCodes = (codes) => {
+    const text = "NetOps Monitor - 2FA Emergency Recovery Codes\n" +
+      "Generated: " + new Date().toISOString() + "\n" +
+      "Keep these codes safe. Each code can be used once if you lose access to your authenticator app.\n\n" +
+      codes.join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `netops-recovery-codes-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success('Recovery codes downloaded.');
+  };
+
+  // -------------------------------------------------------------
+  // Mode A: User already has 2FA enabled -> Manage & Disable view
+  // -------------------------------------------------------------
+  if (user?.two_factor_enabled) {
+    return (
+      <Modal 
+        title="Manage Two-Factor Authentication" 
+        onClose={onClose} 
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+            <button className="btn btn-ghost" onClick={onClose}>Close</button>
+            {disableMode ? (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-ghost" onClick={() => setDisableMode(false)}>Back</button>
+                <button className="btn btn-danger" onClick={handleDisable} disabled={submitting}>
+                  {submitting ? 'Disabling...' : 'Confirm Disable 2FA'}
+                </button>
+              </div>
+            ) : (
+              <button className="btn btn-danger" onClick={() => setDisableMode(true)}>
+                Disable 2FA
+              </button>
+            )}
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Active status banner */}
+          <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '16px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Shield size={36} color="#34d399" />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: '#34d399' }}>2FA is Active & Protecting Your Account</div>
+              <div style={{ color: 'var(--white-70)', fontSize: 13, marginTop: 4 }}>
+                Authenticator app verification is required whenever you sign in with password.
+              </div>
+            </div>
+          </div>
+
+          {!disableMode && (
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--white-90)', marginBottom: 8 }}>Emergency Recovery Codes</div>
+              <p style={{ color: 'var(--white-60)', fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+                If you ever lose access to your authenticator phone or tablet, single-use recovery codes allow you to regain account access.
+              </p>
+              
+              {viewingRecovery ? (
+                <div style={{ background: 'var(--navy-900)', border: '1px solid var(--navy-border)', borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
+                    {recoveryCodes.map((c, idx) => (
+                      <div key={idx} style={{ background: 'var(--navy-800)', border: '1px solid var(--navy-600)', padding: '8px 12px', borderRadius: 8, fontFamily: 'monospace', fontSize: 13, textAlign: 'center', color: '#38bdf8', letterSpacing: 1 }}>
+                        {c}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button className="btn btn-sm btn-ghost" onClick={() => handleCopyCodes(recoveryCodes)}>
+                      {copiedCodes ? <Check size={14} color="#34d399" /> : <Copy size={14} />} {copiedCodes ? 'Copied' : 'Copy All'}
+                    </button>
+                    <button className="btn btn-sm btn-ghost" onClick={() => handleDownloadCodes(recoveryCodes)}>
+                      <Download size={14} /> Download (.txt)
+                    </button>
+                    <button className="btn btn-sm btn-ghost" onClick={() => handleLoadRecoveryCodes(true)} disabled={loadingRecovery} style={{ marginLeft: 'auto' }}>
+                      <RefreshCw size={14} className={loadingRecovery ? 'spin' : ''} /> Regenerate Codes
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button className="btn btn-ghost" onClick={() => handleLoadRecoveryCodes(false)} disabled={loadingRecovery} style={{ background: 'var(--navy-800)' }}>
+                  <Key size={16} /> {loadingRecovery ? 'Loading...' : 'View / Regenerate Recovery Codes'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {disableMode && (
+            <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: 16, borderRadius: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f87171', fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
+                <AlertTriangle size={18} /> Confirm Disabling 2FA
+              </div>
+              <p style={{ color: 'var(--white-70)', fontSize: 13, marginBottom: 16 }}>
+                Disabling two-factor authentication makes your account less secure. Please enter your account password or current 2FA code to verify this action.
+              </p>
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label className="form-label">Account Password</label>
+                <input 
+                  type="password" 
+                  className="form-input" 
+                  value={disablePassword} 
+                  onChange={(e) => setDisablePassword(e.target.value)} 
+                  placeholder="Enter your current password"
+                />
+              </div>
+              <div style={{ textAlign: 'center', margin: '8px 0', color: 'var(--white-40)', fontSize: 12 }}>— OR —</div>
+              <div className="form-group">
+                <label className="form-label">6-Digit Authenticator Code</label>
+                <input 
+                  type="text" 
+                  maxLength={6}
+                  className="form-input" 
+                  value={disableCode} 
+                  onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, ''))} 
+                  placeholder="e.g. 123456"
+                  style={{ letterSpacing: 4, fontFamily: 'monospace', fontSize: 16 }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // Mode B: User is enabling 2FA -> Step-by-step Setup View
+  // -------------------------------------------------------------
   return (
-    <Modal title="Configure 2FA" onClose={onClose} footer={
-      <>
-        <button className="btn btn-ghost" onClick={onClose}>Close</button>
-        <button className="btn btn-primary" onClick={handleSubmit}>Enable Authenticator App</button>
-      </>
-    }>
-      <div style={{ padding: '0 8px' }}>
-        <p style={{ color: 'var(--white-80)', marginBottom: 20, lineHeight: 1.6 }}>
-          To enable two-factor authentication, you will need to scan a QR code using an authenticator app like Google Authenticator, Authy, or 1Password.
-        </p>
-        <div style={{ background: 'var(--navy-900)', padding: 16, borderRadius: 12, border: '1px solid var(--navy-border)', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <Shield size={32} color="var(--saffron-500)" />
+    <Modal 
+      title="Setup Two-Factor Authentication" 
+      onClose={onClose} 
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+          <button className="btn btn-ghost" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleEnable} disabled={submitting || !code || code.length < 6}>
+            {submitting ? 'Verifying...' : 'Verify & Enable 2FA'}
+          </button>
+        </div>
+      }
+    >
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <div className="spinner" style={{ margin: '0 auto 16px auto' }} />
+          <div style={{ color: 'var(--white-70)', fontSize: 14 }}>Generating secure authenticator credentials...</div>
+        </div>
+      ) : setupData ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Step 1: Scan QR or copy Secret */}
           <div>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>Authenticator App</div>
-            <div style={{ color: 'var(--white-60)', fontSize: 13, marginTop: 4 }}>Use a mobile app to generate secure access codes.</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--white-100)', marginBottom: 8 }}>
+              <span style={{ display: 'inline-flex', width: 22, height: 22, background: 'var(--primary-500)', color: '#fff', borderRadius: '50%', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>1</span>
+              Scan QR Code with Authenticator App
+            </div>
+            <p style={{ color: 'var(--white-60)', fontSize: 13, marginBottom: 16 }}>
+              Open Google Authenticator, Microsoft Authenticator, Authy, or 1Password on your phone and scan the QR code below.
+            </p>
+
+            <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap', background: 'var(--navy-900)', border: '1px solid var(--navy-border)', padding: 16, borderRadius: 12 }}>
+              {/* QR Code */}
+              <div style={{ background: '#ffffff', padding: 8, borderRadius: 8, display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                <img src={setupData.qr_url} alt="2FA QR Code" width={160} height={160} style={{ display: 'block', imageRendering: 'pixelated' }} />
+              </div>
+
+              {/* Secret Key Manual Entry */}
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontSize: 12, color: 'var(--white-60)', marginBottom: 4 }}>Can't scan? Enter key manually:</div>
+                <div style={{ 
+                  background: 'var(--navy-800)', 
+                  border: '1px solid var(--navy-600)', 
+                  padding: '10px 14px', 
+                  borderRadius: 8, 
+                  fontFamily: 'monospace', 
+                  fontSize: 14, 
+                  fontWeight: 600, 
+                  color: '#38bdf8', 
+                  letterSpacing: 2,
+                  marginBottom: 8,
+                  wordBreak: 'break-all'
+                }}>
+                  {setupData.formatted_secret || setupData.secret}
+                </div>
+                <button 
+                  type="button" 
+                  className="btn btn-sm btn-ghost" 
+                  onClick={handleCopyKey} 
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {copiedKey ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
+                  {copiedKey ? 'Copied Secret Key' : 'Copy Secret Key'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 2: Emergency Recovery Codes */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--white-100)', marginBottom: 8 }}>
+              <span style={{ display: 'inline-flex', width: 22, height: 22, background: 'var(--primary-500)', color: '#fff', borderRadius: '50%', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>2</span>
+              Save Emergency Recovery Codes
+            </div>
+            <p style={{ color: 'var(--white-60)', fontSize: 13, marginBottom: 12 }}>
+              Store these single-use recovery codes in a secure password manager. They allow logging in if you lose phone access.
+            </p>
+
+            <div style={{ background: 'var(--navy-900)', border: '1px solid var(--navy-border)', borderRadius: 12, padding: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, marginBottom: 12 }}>
+                {setupData.recovery_codes.map((c, idx) => (
+                  <div key={idx} style={{ background: 'var(--navy-800)', border: '1px solid var(--navy-600)', padding: '6px 8px', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, textAlign: 'center', color: '#cbd5e1', letterSpacing: 1 }}>
+                    {c}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleCopyCodes(setupData.recovery_codes)}>
+                  {copiedCodes ? <Check size={14} color="#34d399" /> : <Copy size={14} />} {copiedCodes ? 'Copied' : 'Copy All Codes'}
+                </button>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleDownloadCodes(setupData.recovery_codes)}>
+                  <Download size={14} /> Download File (.txt)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 3: Enter 6-digit verification code */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--white-100)', marginBottom: 8 }}>
+              <span style={{ display: 'inline-flex', width: 22, height: 22, background: 'var(--primary-500)', color: '#fff', borderRadius: '50%', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>3</span>
+              Enter 6-Digit Code to Activate
+            </div>
+            <form onSubmit={handleEnable}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 10 }}>
+                <input 
+                  type="text" 
+                  maxLength={6} 
+                  autoFocus
+                  className="form-input" 
+                  value={code} 
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} 
+                  placeholder="000000"
+                  style={{ 
+                    maxWidth: 200, 
+                    fontSize: 22, 
+                    fontWeight: 700, 
+                    letterSpacing: 6, 
+                    textAlign: 'center', 
+                    fontFamily: 'monospace',
+                    padding: '10px 14px',
+                    borderColor: code.length === 6 ? 'var(--primary-400)' : 'var(--navy-600)'
+                  }}
+                />
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  disabled={submitting || code.length < 6}
+                  style={{ height: 46 }}
+                >
+                  {submitting ? 'Verifying...' : 'Activate 2FA'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ color: 'var(--danger)', padding: 20 }}>
+          Could not load 2FA setup configuration. Please close and try again.
+        </div>
+      )}
     </Modal>
   );
 }

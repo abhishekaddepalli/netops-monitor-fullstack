@@ -49,6 +49,8 @@ export const adminApi = {
   // Notification Templates
   listNotificationTemplates: () => apiClient.get('/v1/admin/notification-templates'),
   updateNotificationTemplate: (id, data) => apiClient.patch(`/v1/admin/notification-templates/${id}`, data),
+  upsertNotificationTemplate: (data) => apiClient.post('/v1/admin/notification-templates/upsert', data),
+  resetNotificationTemplateDefault: (channel_type, event_type) => apiClient.post('/v1/admin/notification-templates/reset-default', { channel_type, event_type }),
 
   // Billing & Logs
   listInvoices: (params) => apiClient.get('/v1/admin/invoices', { params }),

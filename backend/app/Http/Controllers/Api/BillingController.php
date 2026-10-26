@@ -204,4 +204,15 @@ class BillingController extends Controller
         $subscription = $organization->subscriptions()->with('plan')->whereIn('status', ['active', 'trialing'])->first();
         return response()->json(['subscription' => $subscription]);
     }
+
+    public function invoices(Request $request): JsonResponse
+    {
+        $organization = $request->user()->organization;
+        $invoices = Invoice::where('organization_id', $organization->id)
+            ->with(['subscription.plan'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($invoices);
+    }
 }

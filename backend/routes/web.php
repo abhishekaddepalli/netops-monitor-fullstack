@@ -8,6 +8,11 @@ use Illuminate\Support\Facades\Route;
 | requires it — kept minimal on purpose.
 */
 
+Route::get('/auth/google/redirect', [\App\Http\Controllers\Api\Auth\GoogleAuthController::class, 'redirect']);
+Route::get('/auth/google/callback', [\App\Http\Controllers\Api\Auth\GoogleAuthController::class, 'callback']);
+Route::get('/api/v1/auth/google/redirect', [\App\Http\Controllers\Api\Auth\GoogleAuthController::class, 'redirect']);
+Route::get('/api/v1/auth/google/callback', [\App\Http\Controllers\Api\Auth\GoogleAuthController::class, 'callback']);
+
 // Fallback route: Serves the React SPA if built and copied into the public/ directory.
 // If index.html doesn't exist, it falls back to a JSON API status message.
 Route::fallback(function () {

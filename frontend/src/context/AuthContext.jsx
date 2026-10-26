@@ -45,6 +45,14 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     try {
       const { data } = await authApi.login({ email, password });
+      if (data.two_factor_required) {
+        return {
+          success: true,
+          twoFactorRequired: true,
+          twoFactorToken: data.two_factor_token,
+          user: data.user,
+        };
+      }
       localStorage.setItem('netops_token', data.token);
       setUser(data.user);
       setOrganization(data.user.organization ?? null);
@@ -54,6 +62,25 @@ export function AuthProvider({ children }) {
     } catch (error) {
       return { success: false, message: apiErrorMessage(error, 'Invalid email or password.') };
     }
+  }, [loadCurrentUser]);
+
+  const verify2Fa = useCallback(async (twoFactorToken, code) => {
+    try {
+      const { data } = await authApi.verify2Fa({ two_factor_token: twoFactorToken, code });
+      localStorage.setItem('netops_token', data.token);
+      setUser(data.user);
+      setOrganization(data.user.organization ?? null);
+      setRole(data.user.system_role === 'super_admin' ? 'super_admin' : null);
+      await loadCurrentUser();
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: apiErrorMessage(error, 'Invalid 2FA or recovery code.') };
+    }
+  }, [loadCurrentUser]);
+
+  const handleOAuthCallback = useCallback(async (token) => {
+    localStorage.setItem('netops_token', token);
+    await loadCurrentUser();
   }, [loadCurrentUser]);
 
   const register = useCallback(async (payload) => {
@@ -90,7 +117,7 @@ export function AuthProvider({ children }) {
       value={{
         user, organization, role, loading,
         isSuperAdmin, isOrgAdmin, isOperatorOrAbove,
-        login, register, logout, refresh: loadCurrentUser,
+        login, register, logout, verify2Fa, handleOAuthCallback, refresh: loadCurrentUser,
       }}
     >
       {children}

@@ -24,6 +24,10 @@ use Illuminate\Support\Facades\Route;
 */
 Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/auth/2fa/verify', [\App\Http\Controllers\Api\Auth\TwoFactorAuthController::class, 'verify'])->middleware('throttle:10,1');
+Route::get('/auth/google/url', [\App\Http\Controllers\Api\Auth\GoogleAuthController::class, 'url']);
+Route::get('/auth/google/redirect', [\App\Http\Controllers\Api\Auth\GoogleAuthController::class, 'redirect']);
+Route::get('/auth/google/callback', [\App\Http\Controllers\Api\Auth\GoogleAuthController::class, 'callback']);
 Route::get('/plans', [\App\Http\Controllers\Api\PlanController::class, 'index']);
 Route::get('/global-settings', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'publicShow']);
 
@@ -50,6 +54,12 @@ Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
+
+        // 2FA Management
+        Route::post('/auth/2fa/setup', [\App\Http\Controllers\Api\Auth\TwoFactorAuthController::class, 'setup']);
+        Route::post('/auth/2fa/enable', [\App\Http\Controllers\Api\Auth\TwoFactorAuthController::class, 'enable']);
+        Route::post('/auth/2fa/disable', [\App\Http\Controllers\Api\Auth\TwoFactorAuthController::class, 'disable']);
+        Route::get('/auth/2fa/recovery-codes', [\App\Http\Controllers\Api\Auth\TwoFactorAuthController::class, 'recoveryCodes']);
     });
 
     Route::middleware('org.scope')->group(function () {
@@ -58,6 +68,7 @@ Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
         Route::post('/billing/cancel-draft', [\App\Http\Controllers\Api\BillingController::class, 'cancelDraft'])->middleware('org.role:org_admin');
         Route::post('/billing/razorpay/verify', [\App\Http\Controllers\Api\BillingController::class, 'verifyRazorpay'])->middleware('org.role:org_admin');
         Route::get('/billing/current', [\App\Http\Controllers\Api\BillingController::class, 'current'])->middleware('org.role:org_admin');
+        Route::get('/billing/invoices', [\App\Http\Controllers\Api\BillingController::class, 'invoices'])->middleware('org.role:org_admin');
 
         // ── Diagnostic Tools ──────────────────────────────────────────
         Route::post('/tools/ping', [DiagnosticToolController::class, 'ping']);
@@ -191,6 +202,8 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'org.role:super_admin'])-
     Route::apiResource('alert-channels', \App\Http\Controllers\Api\Admin\AlertChannelController::class);
     Route::post('alert-channels/{alert_channel}/test', [\App\Http\Controllers\Api\Admin\AlertChannelController::class, 'test']);
     
+    Route::post('/notification-templates/upsert', [\App\Http\Controllers\Api\Admin\NotificationTemplateController::class, 'upsert']);
+    Route::post('/notification-templates/reset-default', [\App\Http\Controllers\Api\Admin\NotificationTemplateController::class, 'resetDefault']);
     Route::apiResource('notification-templates', \App\Http\Controllers\Api\Admin\NotificationTemplateController::class)->only(['index', 'show', 'update']);
     
     // New simplified Radius endpoints

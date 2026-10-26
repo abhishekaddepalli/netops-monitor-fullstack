@@ -89,6 +89,21 @@ class AuthController extends Controller
             return response()->json(['message' => 'This organization account is suspended.'], 403);
         }
 
+        if ($user->two_factor_enabled && !empty($user->two_factor_secret)) {
+            $twoFactorToken = \Illuminate\Support\Str::random(64);
+            cache()->put('2fa_challenge_' . $twoFactorToken, $user->id, now()->addMinutes(5));
+
+            return response()->json([
+                'two_factor_required' => true,
+                'two_factor_token' => $twoFactorToken,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                ],
+            ]);
+        }
+
         $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
 
         $token = $user->createToken($request->userAgent() ?? 'api')->plainTextToken;
