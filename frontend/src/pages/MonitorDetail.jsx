@@ -14,6 +14,7 @@ import { MonitorTypeIcon } from '../utils/monitorIcons';
 import { MONITOR_TYPE_LABELS, formatMs, timeAgo, formatDateTime } from '../utils/format';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import SoundControlBar from '../components/sound/SoundControlBar';
 
 function formatBytes(b) {
   const bytes = Number(b);
@@ -237,15 +238,55 @@ export default function MonitorDetail() {
     return <Skeleton height={400} />;
   }
 
+  const parseTimestamp = (str) => {
+    if (!str) return Date.now();
+    if (typeof str === 'number') return str;
+    const clean = str.includes('T') ? str : str.replace(' ', 'T');
+    const d = new Date(clean.endsWith('Z') ? clean : clean + 'Z');
+    return isNaN(d.getTime()) ? new Date(str).getTime() : d.getTime();
+  };
+
+  let chartPoints = (checks || [])
+    .map((c) => {
+      const ts = parseTimestamp(c.checked_at);
+      const ms = c.response_time_ms == null ? 0 : Math.round(c.response_time_ms);
+      return [ts, ms];
+    })
+    .filter((p) => !isNaN(p[0]));
+
+  // Fallback if empty and monitor has last_response_time_ms
+  if (chartPoints.length === 0 && monitor?.last_response_time_ms != null) {
+    const now = Date.now();
+    chartPoints = [
+      [now - 3600 * 1000, monitor.last_response_time_ms],
+      [now, monitor.last_response_time_ms],
+    ];
+  }
+
+  // If single point, pad with previous baseline point so ApexCharts area can render
+  if (chartPoints.length === 1) {
+    const single = chartPoints[0];
+    chartPoints = [
+      [single[0] - 15 * 60 * 1000, single[1]],
+      single,
+    ];
+  }
+
   const chartSeries = [{
     name: 'Response Time',
-    data: (checks || []).map((c) => [new Date(c.checked_at).getTime(), c.response_time_ms == null ? 0 : c.response_time_ms]),
+    data: chartPoints,
   }];
 
   const chartOptions = {
     chart: { type: 'area', height: 220, toolbar: { show: true, tools: { download: true, selection: false, zoom: false, zoomin: false, zoomout: false, pan: false, reset: false } }, fontFamily: 'JetBrains Mono, monospace', foreColor: '#9FB0C3', background: 'transparent' },
     dataLabels: { enabled: false },
     stroke: { curve: 'smooth', width: 2.2 },
+    markers: {
+      size: chartPoints.length <= 8 ? 6 : 0,
+      strokeColors: '#0e1726',
+      strokeWidth: 2,
+      hover: { size: 8 },
+    },
     fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 90, 100] } },
     grid: { borderColor: '#22395A', strokeDashArray: 3 },
     xaxis: { 
@@ -260,7 +301,11 @@ export default function MonitorDetail() {
         }
       } 
     },
-    yaxis: { labels: { style: { fontSize: '10.5px' }, formatter: (v) => `${Math.round(v)}ms` } },
+    yaxis: {
+      min: 0,
+      forceNiceScale: true,
+      labels: { style: { fontSize: '10.5px' }, formatter: (v) => `${Math.round(v)}ms` }
+    },
     tooltip: { 
       theme: 'dark', 
       x: { 
@@ -357,6 +402,7 @@ export default function MonitorDetail() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <SoundControlBar compact />
           <button className="btn btn-ghost btn-sm" disabled={!!downloadingExport} onClick={() => handleDownload('png')} title="Download Graph PNG" style={{ gap: 6 }}>
             <Download size={14} /> {downloadingExport === 'png' ? 'Exporting...' : 'Graph PNG'}
           </button>

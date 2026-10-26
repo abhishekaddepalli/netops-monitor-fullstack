@@ -36,11 +36,45 @@ class DashboardController extends Controller
                 AVG(response_time_ms) as avg_response_time_ms
             ')->first();
 
-        $uptimePct = ($checksData && $checksData->total_checks > 0)
-            ? round(($checksData->up_checks / $checksData->total_checks) * 100, 2)
-            : 100;
+        $uptimePct = 100;
+        if ($checksData && $checksData->total_checks > 0) {
+            $uptimePct = round(($checksData->up_checks / $checksData->total_checks) * 100, 2);
+        } else {
+            // Fallback to all-time checks if no checks in last 24h
+            $allTimeChecks = DB::table('checks')
+                ->whereIn('monitor_id', $monitorIds)
+                ->selectRaw('
+                    COUNT(*) as total_checks,
+                    SUM(CASE WHEN result = \'up\' THEN 1 ELSE 0 END) as up_checks
+                ')->first();
+            if ($allTimeChecks && $allTimeChecks->total_checks > 0) {
+                $uptimePct = round(($allTimeChecks->up_checks / $allTimeChecks->total_checks) * 100, 2);
+            }
+        }
 
         $avgResponseTime = $checksData ? $checksData->avg_response_time_ms : null;
+        if ($avgResponseTime === null || $avgResponseTime == 0) {
+            // Fallback 1: latest checks across all monitors
+            $latestAvg = DB::table('checks')
+                ->whereIn('monitor_id', $monitorIds)
+                ->whereNotNull('response_time_ms')
+                ->where('response_time_ms', '>', 0)
+                ->latest('checked_at')
+                ->limit(100)
+                ->avg('response_time_ms');
+            if ($latestAvg !== null && $latestAvg > 0) {
+                $avgResponseTime = $latestAvg;
+            } else {
+                // Fallback 2: average from monitors' cached last_response_time_ms
+                $monitorsAvg = Monitor::where('organization_id', $org->id)
+                    ->whereNotNull('last_response_time_ms')
+                    ->where('last_response_time_ms', '>', 0)
+                    ->avg('last_response_time_ms');
+                if ($monitorsAvg !== null && $monitorsAvg > 0) {
+                    $avgResponseTime = $monitorsAvg;
+                }
+            }
+        }
 
         $activeIncidents = Incident::where('organization_id', $org->id)->whereNot('state', 'resolved');
 
@@ -127,6 +161,50 @@ class DashboardController extends Controller
             ->groupBy('hour_bucket')
             ->orderBy('hour_bucket')
             ->get();
+
+        if ($series->isEmpty() && $monitorIds->isNotEmpty()) {
+            // Fallback: fetch most recent checks without the strict subHours cutoff
+            $recentChecks = DB::table('checks')
+                ->whereIn('monitor_id', $monitorIds)
+                ->whereNotNull('response_time_ms')
+                ->where('response_time_ms', '>', 0)
+                ->orderByDesc('checked_at')
+                ->limit(50)
+                ->get(['checked_at', 'response_time_ms']);
+
+            if ($recentChecks->isNotEmpty()) {
+                $series = $recentChecks->sortBy('checked_at')->map(fn ($c) => (object) [
+                    'hour_bucket' => $c->checked_at,
+                    'avg_ms' => round((float) $c->response_time_ms, 1),
+                ])->values();
+            } else {
+                // Synthesize from monitors' last_response_time_ms if available
+                $monitorsWithData = Monitor::where('organization_id', $org->id)
+                    ->whereNotNull('last_response_time_ms')
+                    ->where('last_response_time_ms', '>', 0)
+                    ->get(['last_checked_at', 'last_response_time_ms', 'updated_at']);
+
+                if ($monitorsWithData->isNotEmpty()) {
+                    $avgMs = round($monitorsWithData->avg('last_response_time_ms'), 1);
+                    $rawTime = $monitorsWithData->max('last_checked_at') ?? now()->toDateTimeString();
+                    $timePoint = is_string($rawTime) ? $rawTime : $rawTime->toDateTimeString();
+                    $prevPoint = date('Y-m-d H:i:s', strtotime($timePoint) - 3600);
+                    $series = collect([
+                        (object) ['hour_bucket' => $prevPoint, 'avg_ms' => $avgMs],
+                        (object) ['hour_bucket' => $timePoint, 'avg_ms' => $avgMs],
+                    ]);
+                }
+            }
+        }
+
+        if ($series->count() === 1) {
+            $single = $series->first();
+            $prevTime = date('Y-m-d H:i:s', strtotime($single->hour_bucket) - 900);
+            $series = collect([
+                (object) ['hour_bucket' => $prevTime, 'avg_ms' => $single->avg_ms],
+                $single,
+            ]);
+        }
 
         return response()->json($series);
     }

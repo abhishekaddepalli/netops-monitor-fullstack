@@ -7,6 +7,7 @@ import { dashboardApi } from '../../api/dashboard';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import CommandPalette from '../ui/CommandPalette';
+import SoundControlBar from '../sound/SoundControlBar';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -69,6 +70,7 @@ export default function AppLayout({ title }) {
               />
             </div>
             <div className="topbar-actions">
+              <SoundControlBar compact />
               <div className="dropdown-container" ref={notifRef}>
                 <button 
                   className={`icon-btn ${showNotifications ? 'active' : ''}`} 

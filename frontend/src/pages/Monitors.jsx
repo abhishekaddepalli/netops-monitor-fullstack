@@ -12,6 +12,8 @@ import { MonitorTypeIcon } from '../utils/monitorIcons';
 import { MONITOR_TYPE_LABELS, formatMs, formatUptime } from '../utils/format';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { useSoundContext } from '../context/SoundContext';
+import SoundControlBar from '../components/sound/SoundControlBar';
 
 function MiniUptimeGraph({ checks }) {
   if (!checks || checks.length === 0) return <span style={{ color: 'var(--white-40)', fontSize: 11, fontFamily: 'var(--font-mono)' }}>No history</span>;
@@ -47,6 +49,7 @@ export default function Monitors() {
   const navigate = useNavigate();
   const toast = useToast();
   const { isOperatorOrAbove, isOrgAdmin } = useAuth();
+  const { trackMonitors } = useSoundContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const [monitors, setMonitors] = useState(null);
   const [typeFilter, setTypeFilter] = useState('');
@@ -73,6 +76,12 @@ export default function Monitors() {
     const interval = setInterval(load, 10000);
     return () => clearInterval(interval);
   }, [load]);
+
+  useEffect(() => {
+    if (monitors && monitors.length > 0) {
+      trackMonitors(monitors);
+    }
+  }, [monitors, trackMonitors]);
 
   async function handlePauseToggle(e, monitor) {
     e.stopPropagation();
@@ -134,7 +143,8 @@ export default function Monitors() {
             {monitors ? `${monitors.length} monitors` : '...'}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <SoundControlBar />
           <button className="btn btn-ghost" onClick={handleTemplate} title="Download CSV Template"><FileDown size={15} /></button>
           <button className="btn btn-ghost" onClick={handleExport} title="Export Monitors"><Download size={15} /></button>
           {isOperatorOrAbove && (
@@ -221,7 +231,7 @@ export default function Monitors() {
                   </td>
                   <td><StatusPill status={m.status} /></td>
                   <td><MiniUptimeGraph checks={m.recent_checks} /></td>
-                  <td>{m.uptime_pct != null ? formatUptime(m.uptime_pct) : '—'}</td>
+                  <td>{m.uptime_pct != null ? formatUptime(m.uptime_pct) : (m.status === 'down' ? '0.00%' : '100.00%')}</td>
                   <td><span className="tag">{MONITOR_TYPE_LABELS[m.type]}</span></td>
                   <td className="mon-metric">{formatMs(m.last_response_time_ms)}</td>
                   <td style={{ color: 'var(--white-60)' }}>{m.check_interval_seconds}s</td>

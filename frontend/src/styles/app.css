@@ -914,3 +914,28 @@
   from { stroke-dashoffset: 24; }
   to { stroke-dashoffset: 0; }
 }
+
+/* Sound Alert Animations & Mobile Enhancements */
+@keyframes soundPulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  70% { transform: scale(1.03); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+@media (max-width: 640px) {
+  .topbar-actions {
+    gap: 6px !important;
+  }
+  .topbar-actions .btn {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+  }
+  .detail-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

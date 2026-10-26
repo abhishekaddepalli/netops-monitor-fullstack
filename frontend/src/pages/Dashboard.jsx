@@ -12,6 +12,8 @@ import { MonitorTypeIcon } from '../utils/monitorIcons';
 import { formatMs, formatUptime, timeAgo } from '../utils/format';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { useSoundContext } from '../context/SoundContext';
+import SoundControlBar from '../components/sound/SoundControlBar';
 import { apiErrorMessage } from '../api/client';
 import { motion } from 'framer-motion';
 
@@ -62,6 +64,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const toast = useToast();
   const { isOperatorOrAbove, isOrgAdmin } = useAuth();
+  const { trackMonitors } = useSoundContext();
   const { summary: ctxSummary } = useOutletContext();
   const [summary, setSummary] = useState(ctxSummary);
   const [series, setSeries] = useState(null);
@@ -127,6 +130,12 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (monitors && monitors.length > 0) {
+      trackMonitors(monitors);
+    }
+  }, [monitors, trackMonitors]);
+
   const reloadMonitors = async () => {
     try {
       const { data } = await monitorsApi.list({ per_page: 6 });
@@ -162,26 +171,95 @@ export default function Dashboard() {
     }
   }
 
+  const parseTimestamp = (str) => {
+    if (!str) return Date.now();
+    if (typeof str === 'number') return str;
+    const clean = str.includes('T') ? str : str.replace(' ', 'T');
+    const d = new Date(clean.endsWith('Z') ? clean : clean + 'Z');
+    return isNaN(d.getTime()) ? new Date(str).getTime() : d.getTime();
+  };
+
+  let chartPoints = (series || [])
+    .map((p) => [parseTimestamp(p.hour_bucket), Math.round(p.avg_ms || 0)])
+    .filter((p) => !isNaN(p[0]));
+
+  // Fallback if series is empty but monitors have response time
+  if (chartPoints.length === 0 && monitors && monitors.length > 0) {
+    const valid = monitors.filter((m) => m.last_response_time_ms != null && m.last_response_time_ms > 0);
+    if (valid.length > 0) {
+      const avg = Math.round(valid.reduce((acc, m) => acc + Number(m.last_response_time_ms), 0) / valid.length);
+      const now = Date.now();
+      chartPoints = [
+        [now - 3600 * 1000, avg],
+        [now, avg],
+      ];
+    }
+  }
+
+  // If only 1 point exists, pad with previous baseline point so ApexCharts area can render
+  if (chartPoints.length === 1) {
+    const single = chartPoints[0];
+    chartPoints = [
+      [single[0] - 15 * 60 * 1000, single[1]],
+      single,
+    ];
+  }
+
   const chartSeries = [{
     name: 'Avg Response Time',
-    data: (series || []).map((p) => [new Date(p.hour_bucket.replace(' ', 'T') + 'Z').getTime(), Math.round(p.avg_ms || 0)]),
+    data: chartPoints,
   }];
 
   const chartOptions = {
     chart: { type: 'area', height: 240, toolbar: { show: true, tools: { download: true, selection: false, zoom: false, pan: false } }, fontFamily: 'JetBrains Mono, monospace', foreColor: '#9FB0C3', background: 'transparent', animations: { enabled: true, speed: 400 } },
     dataLabels: { enabled: false },
     stroke: { curve: 'smooth', width: 2.2 },
+    markers: {
+      size: chartPoints.length <= 8 ? 5 : 0,
+      strokeWidth: 2,
+      strokeColors: '#0e1726',
+      hover: { size: 7 },
+    },
     fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0, stops: [0, 90, 100] } },
     grid: { borderColor: '#22395A', strokeDashArray: 3, padding: { left: 8, right: 8 } },
     xaxis: { type: 'datetime', labels: { style: { fontSize: '10.5px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
-    yaxis: { labels: { style: { fontSize: '10.5px' }, formatter: (v) => `${Math.round(v)}ms` } },
+    yaxis: { min: 0, forceNiceScale: true, labels: { style: { fontSize: '10.5px' }, formatter: (v) => `${Math.round(v)}ms` } },
     tooltip: { theme: 'dark', x: { format: 'dd MMM, HH:mm' } },
     colors: ['#2E4FA3'],
     legend: { show: false },
   };
 
+  const avgResponseTimeDisplay = () => {
+    if (summary?.avg_response_time_ms != null && summary.avg_response_time_ms > 0) {
+      return <>{summary.avg_response_time_ms}<span className="unit">ms</span></>;
+    }
+    if (monitors && monitors.length > 0) {
+      const valid = monitors.filter((m) => m.last_response_time_ms != null && m.last_response_time_ms > 0);
+      if (valid.length > 0) {
+        const avg = Math.round(valid.reduce((acc, m) => acc + Number(m.last_response_time_ms), 0) / valid.length);
+        return <>{avg}<span className="unit">ms</span></>;
+      }
+    }
+    if (summary) {
+      return <>0<span className="unit">ms</span></>;
+    }
+    return null;
+  };
+
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="show" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <motion.div variants={containerVariants} initial="hidden" animate="show" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #f1f5f9)', letterSpacing: '-0.3px' }}>
+            System Overview
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--white-50)', marginTop: 2 }}>
+            Real-time infrastructure health and latency monitoring
+          </div>
+        </div>
+        <SoundControlBar />
+      </div>
+
       <motion.div className="kpi-grid" variants={itemVariants}>
         <KpiCard
           label="Overall Uptime"
@@ -203,7 +281,7 @@ export default function Dashboard() {
         />
         <KpiCard
           label="Avg Response Time"
-          value={summary?.avg_response_time_ms != null ? <>{summary.avg_response_time_ms}<span className="unit">ms</span></> : null}
+          value={avgResponseTimeDisplay()}
           icon={<Clock />}
           iconBg="var(--chakra-dim)"
           iconColor="var(--chakra-400)"
@@ -338,7 +416,7 @@ export default function Dashboard() {
                   </td>
                   <td><StatusPill status={m.status} /></td>
                   <td><MiniUptimeGraph checks={m.recent_checks} /></td>
-                  <td>{m.uptime_pct != null ? formatUptime(m.uptime_pct) : '—'}</td>
+                  <td>{m.uptime_pct != null ? formatUptime(m.uptime_pct) : (m.status === 'down' ? '0.00%' : '100.00%')}</td>
                   <td className="mon-metric">{formatMs(m.last_response_time_ms)}</td>
                   <td style={{ textAlign: 'right' }}>
                     {isOperatorOrAbove && (

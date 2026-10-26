@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SoundProvider } from './context/SoundContext';
+import SoundSettingsModal from './components/sound/SoundSettingsModal';
 import ProtectedRoute from './components/ProtectedRoute';
 import RequireRole from './components/RequireRole';
 import AppLayout from './components/layout/AppLayout';
@@ -69,6 +71,7 @@ export default function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
+          <SoundProvider>
           <ToastProvider>
             <ErrorBoundary>
               <Routes>
@@ -204,8 +207,10 @@ export default function App() {
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              <SoundSettingsModal />
             </ErrorBoundary>
           </ToastProvider>
+        </SoundProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
