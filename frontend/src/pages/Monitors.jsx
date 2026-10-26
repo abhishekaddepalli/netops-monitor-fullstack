@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Filter, Pause, Play, Trash2, Activity, Download, Upload, FileDown, Search } from 'lucide-react';
+import { Plus, Filter, Pause, Play, Trash2, Activity, Download, Upload, FileDown, Search, Volume2, VolumeX } from 'lucide-react';
 import { monitorsApi } from '../api/monitors';
 import { apiErrorMessage } from '../api/client';
 import StatusPill from '../components/ui/StatusPill';
@@ -50,7 +50,7 @@ export default function Monitors() {
   const navigate = useNavigate();
   const toast = useToast();
   const { isOperatorOrAbove, isOrgAdmin } = useAuth();
-  const { trackMonitors } = useSoundContext();
+  const { trackMonitors, isMonitorMuted, toggleMonitorMute, muteAll, unmuteAll, mutedMonitorIds } = useSoundContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const [monitors, setMonitors] = useState(null);
   const [typeFilter, setTypeFilter] = useState('');
@@ -177,6 +177,32 @@ export default function Monitors() {
                 {label} ({counts[type] || 0})
               </button>
             ))}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8, paddingLeft: 8, borderLeft: '1px solid var(--white-10)' }}>
+              <button 
+                className={`chip${mutedMonitorIds.length === 0 ? ' active' : ''}`}
+                onClick={() => {
+                  unmuteAll();
+                  toast.success('Audio alarms armed for all monitors');
+                }}
+                title="Enable alarm sounds for all monitors"
+                style={{ gap: 5, fontSize: 11 }}
+              >
+                <Volume2 size={12} color="#10b981" /> Alarms: All ON
+              </button>
+              <button 
+                className={`chip${monitors && monitors.length > 0 && mutedMonitorIds.length >= monitors.length ? ' active' : ''}`}
+                onClick={() => {
+                  if (monitors && monitors.length > 0) {
+                    muteAll(monitors.map(m => m.id));
+                    toast.info('Audio alarms silenced for all monitors');
+                  }
+                }}
+                title="Silence alarm sounds for all monitors"
+                style={{ gap: 5, fontSize: 11 }}
+              >
+                <VolumeX size={12} color="#f59e0b" /> Mute All
+              </button>
+            </div>
           </div>
           <div className="search-box" style={{ maxWidth: 240 }}>
             <input
@@ -238,7 +264,26 @@ export default function Monitors() {
                   <td style={{ color: 'var(--white-60)' }}>{m.check_interval_seconds}s</td>
                   <td style={{ textAlign: 'right' }}>
                     {isOperatorOrAbove && (
-                      <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
+                      <div className="row-actions" style={{ justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <button 
+                          className="icon-btn-sm" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleMonitorMute(m.id);
+                            const willMute = !isMonitorMuted(m.id);
+                            toast[willMute ? 'info' : 'success'](
+                              willMute ? `Alarm sound muted for ${m.name}` : `Alarm sound active for ${m.name}`
+                            );
+                          }}
+                          style={{
+                            color: isMonitorMuted(m.id) ? 'var(--white-30)' : '#38bdf8',
+                            background: isMonitorMuted(m.id) ? 'transparent' : 'rgba(56, 189, 248, 0.12)',
+                            border: isMonitorMuted(m.id) ? '1px dashed rgba(255,255,255,0.15)' : '1px solid rgba(56, 189, 248, 0.35)',
+                          }}
+                          title={isMonitorMuted(m.id) ? `Alarm Sound: OFF for ${m.name} (Click to Arm Audio)` : `Alarm Sound: ON for ${m.name} (Click to Silence)`}
+                        >
+                          {isMonitorMuted(m.id) ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                        </button>
                         <button className="icon-btn-sm" onClick={(e) => { e.stopPropagation(); navigate(`/monitors/${m.id}`); }} title="View / Test">
                           <Activity size={14} />
                         </button>

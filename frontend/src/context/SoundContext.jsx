@@ -66,6 +66,16 @@ export function SoundProvider({ children }) {
     }
   });
 
+  // Individual & Group Monitor Sound Mute State
+  const [mutedMonitorIds, setMutedMonitorIds] = useState(() => {
+    try {
+      const stored = localStorage.getItem('netops_sound_muted_monitors');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeAlarmInfo, setActiveAlarmInfo] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -82,8 +92,68 @@ export function SoundProvider({ children }) {
       localStorage.setItem('netops_sound_down', downSound);
       localStorage.setItem('netops_sound_up', upSound);
       localStorage.setItem('netops_sound_loop', loopAlarm ? 'true' : 'false');
+      localStorage.setItem('netops_sound_muted_monitors', JSON.stringify(mutedMonitorIds));
     } catch {}
-  }, [enabled, volume, downSound, upSound, loopAlarm]);
+  }, [enabled, volume, downSound, upSound, loopAlarm, mutedMonitorIds]);
+
+  // Check if a specific monitor has alarm sound disabled
+  const isMonitorMuted = useCallback((monitorId) => {
+    return mutedMonitorIds.includes(Number(monitorId));
+  }, [mutedMonitorIds]);
+
+  // Toggle individual monitor sound alarm
+  const toggleMonitorMute = useCallback((monitorId) => {
+    const idNum = Number(monitorId);
+    setMutedMonitorIds((prev) => {
+      const exists = prev.includes(idNum);
+      const next = exists ? prev.filter((x) => x !== idNum) : [...prev, idNum];
+      try {
+        localStorage.setItem('netops_sound_muted_monitors', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  // Mute specific monitor IDs in bulk
+  const muteMonitors = useCallback((ids) => {
+    const idNums = ids.map(Number);
+    setMutedMonitorIds((prev) => {
+      const next = Array.from(new Set([...prev, ...idNums]));
+      try {
+        localStorage.setItem('netops_sound_muted_monitors', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  // Unmute specific monitor IDs in bulk
+  const unmuteMonitors = useCallback((ids) => {
+    const idSet = new Set(ids.map(Number));
+    setMutedMonitorIds((prev) => {
+      const next = prev.filter((x) => !idSet.has(x));
+      try {
+        localStorage.setItem('netops_sound_muted_monitors', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  // Group Mute all provided monitors
+  const muteAll = useCallback((allMonitorIds = []) => {
+    const allNums = allMonitorIds.map(Number);
+    setMutedMonitorIds(allNums);
+    try {
+      localStorage.setItem('netops_sound_muted_monitors', JSON.stringify(allNums));
+    } catch {}
+  }, []);
+
+  // Group Unmute all monitors
+  const unmuteAll = useCallback(() => {
+    setMutedMonitorIds([]);
+    try {
+      localStorage.setItem('netops_sound_muted_monitors', JSON.stringify([]));
+    } catch {}
+  }, []);
 
   const stopAlarm = useCallback(() => {
     stopAllSounds();
@@ -158,17 +228,21 @@ export function SoundProvider({ children }) {
       if (!m || !m.id) return;
       const prevStatus = prevMap[m.id];
       const curStatus = m.status;
+      const isMuted = mutedMonitorIds.includes(Number(m.id));
 
       if (prevStatus && prevStatus !== curStatus) {
-        // Monitor transitioned from up/degraded/pending to down
-        if (curStatus === 'down' && prevStatus !== 'down') {
-          downTriggered = true;
-          triggeredName = m.name;
-        }
-        // Monitor recovered from down to up
-        else if (curStatus === 'up' && prevStatus === 'down') {
-          upTriggered = true;
-          triggeredName = m.name;
+        // Only trigger audio alarms if the monitor is not individually/group muted
+        if (!isMuted) {
+          // Monitor transitioned from up/degraded/pending to down
+          if (curStatus === 'down' && prevStatus !== 'down') {
+            downTriggered = true;
+            triggeredName = m.name;
+          }
+          // Monitor recovered from down to up
+          else if (curStatus === 'up' && prevStatus === 'down') {
+            upTriggered = true;
+            triggeredName = m.name;
+          }
         }
       }
       prevMap[m.id] = curStatus;
@@ -179,7 +253,7 @@ export function SoundProvider({ children }) {
     } else if (upTriggered) {
       playUpChime(triggeredName);
     }
-  }, [playDownAlarm, playUpChime]);
+  }, [playDownAlarm, playUpChime, mutedMonitorIds]);
 
   return (
     <SoundContext.Provider
@@ -192,6 +266,13 @@ export function SoundProvider({ children }) {
         isPlaying,
         activeAlarmInfo,
         isSettingsOpen,
+        mutedMonitorIds,
+        isMonitorMuted,
+        toggleMonitorMute,
+        muteMonitors,
+        unmuteMonitors,
+        muteAll,
+        unmuteAll,
         setEnabled,
         setVolume,
         setDownSound,

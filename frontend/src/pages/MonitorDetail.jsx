@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Chart from 'react-apexcharts';
-import { ChevronRight, CheckCircle2, Pencil, Pause, Play, Zap, Copy, Printer, Download, FileText, Activity } from 'lucide-react';
+import { ChevronRight, CheckCircle2, Pencil, Pause, Play, Zap, Copy, Printer, Download, FileText, Activity, Volume2, VolumeX } from 'lucide-react';
 import { monitorsApi } from '../api/monitors';
 import { incidentsApi } from '../api/incidents';
 import { apiErrorMessage } from '../api/client';
@@ -14,6 +14,7 @@ import { MonitorTypeIcon } from '../utils/monitorIcons';
 import { MONITOR_TYPE_LABELS, formatMs, timeAgo, formatDateTime } from '../utils/format';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { useSoundContext } from '../context/SoundContext';
 import SoundControlBar from '../components/sound/SoundControlBar';
 
 function formatBytes(b) {
@@ -31,6 +32,7 @@ export default function MonitorDetail() {
   const navigate = useNavigate();
   const toast = useToast();
   const { isOperatorOrAbove } = useAuth();
+  const { isMonitorMuted, toggleMonitorMute } = useSoundContext();
   const [monitor, setMonitor] = useState(null);
   const [recentChecks, setRecentChecks] = useState(null);
   const [chartChecks, setChartChecks] = useState(null);
@@ -418,6 +420,26 @@ export default function MonitorDetail() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <SoundControlBar compact />
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => {
+              toggleMonitorMute(id);
+              const willMute = !isMonitorMuted(id);
+              toast[willMute ? 'info' : 'success'](
+                willMute ? `Alarm sound muted for ${monitor.name}` : `Alarm sound armed for ${monitor.name}`
+              );
+            }}
+            style={{
+              gap: 6,
+              color: isMonitorMuted(id) ? 'var(--white-50)' : '#38bdf8',
+              borderColor: isMonitorMuted(id) ? 'var(--white-15)' : 'rgba(56, 189, 248, 0.4)',
+              background: isMonitorMuted(id) ? 'transparent' : 'rgba(56, 189, 248, 0.1)',
+            }}
+            title={isMonitorMuted(id) ? 'Alarm sound muted for this monitor (Click to Arm)' : 'Alarm sound active for this monitor (Click to Silence)'}
+          >
+            {isMonitorMuted(id) ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            <span>{isMonitorMuted(id) ? 'Alarm: OFF' : 'Alarm: ON'}</span>
+          </button>
           <button className="btn btn-ghost btn-sm" disabled={!!downloadingExport} onClick={() => handleDownload('png')} title="Download Graph PNG" style={{ gap: 6 }}>
             <Download size={14} /> {downloadingExport === 'png' ? 'Exporting...' : 'Graph PNG'}
           </button>
