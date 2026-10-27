@@ -6,26 +6,44 @@ use App\Models\AlertChannel;
 use App\Models\Incident;
 use App\Models\GlobalSetting;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
+use RuntimeException;
 
 /**
- * Uses generic 3rd party API (e.g., Wapblaster) for WhatsApp alerts.
+ * Sends WhatsApp alerts using configured Gateway (Wapblaster, Custom API, or Webhook).
  */
 class WhatsAppAlertSender implements AlertSenderInterface
 {
-    /** Config shape: { "to": "+1234567890" } */
+    /** Config shape: { "to": "+1234567890", "endpoint_url": "...", "token": "..." } */
     public function send(AlertChannel $channel, Incident $incident, string $event): void
     {
-        $to = $channel->config['to'] ?? null;
-        $endpointUrl = GlobalSetting::getValue('wapblaster_url');
-        $authToken = GlobalSetting::getValue('wapblaster_token');
+        $to = $channel->config['to'] 
+            ?? $channel->config['phone'] 
+            ?? $channel->config['phone_number'] 
+            ?? null;
 
-        if (! $to || ! $endpointUrl) {
-            throw new \RuntimeException('WhatsApp channel or API Endpoint not configured in Super Admin.');
+        $endpointUrl = $channel->config['endpoint_url'] 
+            ?? $channel->config['url'] 
+            ?? GlobalSetting::getValue('wapblaster_url');
+
+        $authToken = $channel->config['token'] 
+            ?? $channel->config['api_key'] 
+            ?? GlobalSetting::getValue('wapblaster_token');
+
+        if (! $to) {
+            throw new RuntimeException('WhatsApp channel is missing destination phone number (e.g. +91XXXXXXXXXX).');
+        }
+
+        if (! $endpointUrl) {
+            throw new RuntimeException('WhatsApp API endpoint not configured in Channel config or Super Admin Integrations.');
         }
 
         $message = TemplateParser::parse('whatsapp', $incident, $event);
 
-        $client = new Client(['timeout' => 10]);
+        $client = new Client([
+            'timeout' => 10,
+            'connect_timeout' => 5,
+        ]);
         
         $headers = [
             'Content-Type' => 'application/json',
@@ -33,20 +51,35 @@ class WhatsAppAlertSender implements AlertSenderInterface
         ];
 
         if ($authToken) {
-            $headers['Authorization'] = "Bearer {$authToken}";
+            $headers['Authorization'] = str_starts_with($authToken, 'Bearer ') ? $authToken : "Bearer {$authToken}";
+            $headers['api-key'] = $authToken;
         }
 
-        $response = $client->post($endpointUrl, [
-            'headers' => $headers,
-            'json' => [
-                'to' => $to,
-                'message' => $message,
-            ],
-            'http_errors' => false,
-        ]);
+        // Clean recipient number
+        $cleanTo = preg_replace('/[^0-9+]/', '', (string)$to);
 
-        if ($response->getStatusCode() >= 300) {
-            throw new \RuntimeException("WhatsApp 3rd Party API returned HTTP {$response->getStatusCode()}: " . (string)$response->getBody());
+        $payload = [
+            'to' => $cleanTo,
+            'phone' => $cleanTo,
+            'number' => $cleanTo,
+            'message' => $message,
+            'text' => $message,
+        ];
+
+        try {
+            $response = $client->post($endpointUrl, [
+                'headers' => $headers,
+                'json' => $payload,
+                'http_errors' => false,
+            ]);
+
+            $status = $response->getStatusCode();
+            if ($status >= 300) {
+                $body = (string)$response->getBody();
+                throw new RuntimeException("WhatsApp Gateway returned HTTP {$status}: " . mb_substr($body, 0, 300));
+            }
+        } catch (RequestException $e) {
+            throw new RuntimeException('WhatsApp Gateway connection failed: ' . $e->getMessage());
         }
     }
 }

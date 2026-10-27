@@ -30,6 +30,7 @@ Route::get('/auth/google/redirect', [\App\Http\Controllers\Api\Auth\GoogleAuthCo
 Route::get('/auth/google/callback', [\App\Http\Controllers\Api\Auth\GoogleAuthController::class, 'callback']);
 Route::get('/plans', [\App\Http\Controllers\Api\PlanController::class, 'index']);
 Route::get('/global-settings', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'publicShow']);
+Route::get('/cms/pages/{slug?}', [\App\Http\Controllers\Api\PublicCmsController::class, 'getPage']);
 
 // Agent Routes
 Route::get('/v1/agent/jobs', [\App\Http\Controllers\Api\AgentController::class, 'getJobs']);
@@ -182,6 +183,14 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'org.role:super_admin'])-
     Route::get('/monitoring-nodes', [MonitoringNodeController::class, 'index']);
     Route::post('/monitoring-nodes', [MonitoringNodeController::class, 'store']);
     Route::patch('/monitoring-nodes/{monitoring_node}', [MonitoringNodeController::class, 'update']);
+
+    // Site CMS & Dynamic Pages
+    Route::get('/cms/pages', [\App\Http\Controllers\Api\Admin\CmsController::class, 'index']);
+    Route::get('/cms/pages/{id}', [\App\Http\Controllers\Api\Admin\CmsController::class, 'show']);
+    Route::post('/cms/pages', [\App\Http\Controllers\Api\Admin\CmsController::class, 'store']);
+    Route::patch('/cms/pages/{id}', [\App\Http\Controllers\Api\Admin\CmsController::class, 'update']);
+    Route::delete('/cms/pages/{id}', [\App\Http\Controllers\Api\Admin\CmsController::class, 'destroy']);
+    Route::post('/cms/pages/{id}/reset-default', [\App\Http\Controllers\Api\Admin\CmsController::class, 'resetDefault']);
 
     // Settings and Status Pages
     Route::get('/settings', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'show']);

@@ -39,6 +39,7 @@ import AdminGlobalAlertChannels from './pages/AdminGlobalAlertChannels';
 import AdminApiDocs from './pages/AdminApiDocs';
 import AdminSettings from './pages/AdminSettings';
 import AdminServerHealth from './pages/AdminServerHealth';
+import AdminCms from './pages/AdminCms';
 import ApiDocs from './pages/ApiDocs';
 import AuthCallback from './pages/AuthCallback';
 import NotFound from './pages/NotFound';
@@ -64,6 +65,7 @@ const TITLES = {
   '/admin/invoices': 'Invoices & Payments',
   '/admin/logs': 'Global Logs',
   '/admin/server-health': 'Server Health',
+  '/admin/cms': 'Site CMS & Pages',
   '/admin/settings': 'Whitelabel Settings',
 };
 
@@ -78,6 +80,7 @@ export default function App() {
               <Routes>
                 {/* Public routes */}
                 <Route path="/" element={<Landing />} />
+                <Route path="/page/:slug" element={<Landing />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
@@ -194,6 +197,14 @@ export default function App() {
                     element={
                       <RequireRole role="super_admin">
                         <AdminSettings />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/cms"
+                    element={
+                      <RequireRole role="super_admin">
+                        <AdminCms />
                       </RequireRole>
                     }
                   />

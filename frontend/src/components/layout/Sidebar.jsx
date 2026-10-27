@@ -2,10 +2,11 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Activity, AlertTriangle, Globe2,
   Network, Users, Plug, Settings, LogOut, Code, Terminal,
-  Building2, ListPlus, Server, CreditCard, Receipt, FileClock, Wallet, FileText, X, Sun, Moon, ServerCog
+  Building2, ListPlus, Server, CreditCard, Receipt, FileClock, Wallet, FileText, X, Sun, Moon, ServerCog, LayoutTemplate
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import PwaInstallButton from '../pwa/PwaInstallButton';
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -118,6 +119,9 @@ export default function Sidebar({ activeIncidentCount = 0, isOpen, setIsOpen }) 
             <NavLink onClick={() => setIsOpen?.(false)} to="/admin/alert-channels" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               <AlertTriangle /> Global Alert Channels
             </NavLink>
+            <NavLink onClick={() => setIsOpen?.(false)} to="/admin/cms" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <LayoutTemplate /> Site CMS & Pages
+            </NavLink>
             <NavLink onClick={() => setIsOpen?.(false)} to="/admin/invoices" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               <Receipt /> Invoices
             </NavLink>
@@ -134,8 +138,12 @@ export default function Sidebar({ activeIncidentCount = 0, isOpen, setIsOpen }) 
         )}
       </div>
 
+      <div style={{ padding: '0 16px 12px' }}>
+        <PwaInstallButton variant="sidebar" />
+      </div>
+
       {role === 'super_admin' && (
-        <div style={{ padding: '0 24px 16px' }}>
+        <div style={{ padding: '0 16px 16px' }}>
           <button 
             className="btn btn-ghost" 
             style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: '10px' }}

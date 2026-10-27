@@ -275,6 +275,59 @@ export default function AdminAlertIntegrations() {
           </div>
         </div>
       </div>
+
+      <div className="panel" style={{ marginBottom: 30 }}>
+        <div className="panel-head">
+          <div>
+            <div className="panel-title">Pusher (Real-Time Broadcasting & Alarms)</div>
+            <div className="panel-sub">Powers real-time browser alerts, live incident updates, and instant dashboard alarms.</div>
+          </div>
+        </div>
+        <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
+            <div className="form-group">
+              <label className="form-label">Pusher App ID</label>
+              <input
+                type="text"
+                className="form-input"
+                value={settings.pusher_app_id || ''}
+                onChange={(e) => handleChange('pusher_app_id', e.target.value)}
+                placeholder="e.g. 1234567"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Pusher Cluster</label>
+              <input
+                type="text"
+                className="form-input"
+                value={settings.pusher_app_cluster || ''}
+                onChange={(e) => handleChange('pusher_app_cluster', e.target.value)}
+                placeholder="e.g. ap2 or mt1"
+              />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Pusher Key</label>
+            <input
+              type="text"
+              className="form-input"
+              value={settings.pusher_app_key || ''}
+              onChange={(e) => handleChange('pusher_app_key', e.target.value)}
+              placeholder="e.g. a1b2c3d4e5f6g7h8i9j0"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Pusher Secret</label>
+            <input
+              type="password"
+              className="form-input"
+              value={settings.pusher_app_secret || ''}
+              onChange={(e) => handleChange('pusher_app_secret', e.target.value)}
+              placeholder="xxxxxxxxxxxxxxxxxxxxxxxx"
+            />
+          </div>
+        </div>
+      </div>
     </>
   );
 }

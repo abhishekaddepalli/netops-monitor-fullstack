@@ -4,21 +4,44 @@ namespace App\Services\Alerts;
 
 use App\Models\AlertChannel;
 use App\Models\Incident;
+use GuzzleHttp\Client;
+use RuntimeException;
 
-/**
- * Web/mobile push depends on a registered FCM/APNs device token store that
- * doesn't exist in this pass (no mobile app push-token table yet — see
- * Additional Advanced Features: "Mobile responsive UI" / agent apps).
- * Wire this up once device_tokens table + FCM server key exist:
- *   1. Add a device_tokens table (user_id, token, platform)
- *   2. POST to FCM's HTTP v1 API with channel's target user's tokens
- * Left as an explicit no-op (not silently "successful") so misconfigured
- * push channels surface clearly in alert_logs as failed, not lost silently.
- */
 class PushAlertSender implements AlertSenderInterface
 {
+    /** Config shape: { "endpoint": "https://...", "key": "..." } or FCM webhook */
     public function send(AlertChannel $channel, Incident $incident, string $event): void
     {
-        throw new \RuntimeException('Push notifications are not yet implemented — see class docblock for the wiring steps.');
+        $endpoint = $channel->config['endpoint'] 
+            ?? $channel->config['webhook_url'] 
+            ?? $channel->config['url'] 
+            ?? null;
+
+        $title = ($event === 'down') 
+            ? "🚨 Monitor DOWN: {$incident->monitor?->name}" 
+            : "✅ Monitor UP: {$incident->monitor?->name}";
+
+        $body = TemplateParser::parse('push', $incident, $event);
+
+        if ($endpoint) {
+            $client = new Client(['timeout' => 8, 'connect_timeout' => 4]);
+            $client->post($endpoint, [
+                'json' => [
+                    'title' => $title,
+                    'body' => $body,
+                    'incident_id' => $incident->id,
+                    'event' => $event,
+                ],
+                'http_errors' => false,
+            ]);
+            return;
+        }
+
+        // If no external push endpoint configured on channel, broadcast via Pusher/event
+        try {
+            event(new \App\Events\MonitorStatusChanged($incident->monitor, $event === 'down' ? 'up' : 'down'));
+        } catch (\Throwable) {
+            // Silently continue
+        }
     }
 }

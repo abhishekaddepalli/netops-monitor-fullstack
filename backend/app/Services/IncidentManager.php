@@ -6,6 +6,7 @@ use App\Events\IncidentCreated;
 use App\Events\IncidentResolved;
 use App\Models\Incident;
 use App\Models\Monitor;
+use Illuminate\Support\Facades\Log;
 
 class IncidentManager
 {
@@ -46,10 +47,18 @@ class IncidentManager
             'is_system_generated' => true,
         ]);
 
+        // 1. Dispatch multi-channel alerts IMMEDIATELY so notifications are never delayed by queues
+        try {
+            app(AlertDispatcher::class)->notifyIncidentOpened($incident);
+        } catch (\Throwable $e) {
+            Log::error("AlertDispatcher error in notifyIncidentOpened: " . $e->getMessage());
+        }
+
+        // 2. Broadcast real-time event (Pusher / WebSocket) safely
         try {
             event(new IncidentCreated($incident));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning("Failed to broadcast IncidentCreated: " . $e->getMessage());
+            Log::warning("Failed to broadcast IncidentCreated: " . $e->getMessage());
         }
 
         return $incident;
@@ -64,10 +73,18 @@ class IncidentManager
 
         $incident->resolve(null, 'Monitor recovered — '.$monitor->confirmation_successes.' consecutive successful checks.');
 
+        // 1. Dispatch multi-channel recovery alerts IMMEDIATELY
+        try {
+            app(AlertDispatcher::class)->notifyIncidentResolved($incident);
+        } catch (\Throwable $e) {
+            Log::error("AlertDispatcher error in notifyIncidentResolved: " . $e->getMessage());
+        }
+
+        // 2. Broadcast real-time recovery event safely
         try {
             event(new IncidentResolved($incident));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning("Failed to broadcast IncidentResolved: " . $e->getMessage());
+            Log::warning("Failed to broadcast IncidentResolved: " . $e->getMessage());
         }
     }
 
