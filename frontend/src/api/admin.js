@@ -46,6 +46,10 @@ export const adminApi = {
   updateSettings: (data) => apiClient.patch('/v1/admin/settings', data),
   testIntegration: (provider, config) => apiClient.post(`/v1/admin/integrations/test/${provider}`, { config }),
 
+  // Radius Integration Settings & Management
+  getRadiusSettings: () => apiClient.get('/v1/admin/radius/settings'),
+  updateRadiusSettings: (data) => apiClient.post('/v1/admin/radius/settings', data),
+
   // Notification Templates
   listNotificationTemplates: () => apiClient.get('/v1/admin/notification-templates'),
   updateNotificationTemplate: (id, data) => apiClient.patch(`/v1/admin/notification-templates/${id}`, data),

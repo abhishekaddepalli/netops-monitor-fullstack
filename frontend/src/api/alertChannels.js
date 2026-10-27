@@ -6,4 +6,6 @@ export const alertChannelsApi = {
   update: (id, payload) => apiClient.patch(`/v1/alert-channels/${id}`, payload),
   remove: (id) => apiClient.delete(`/v1/alert-channels/${id}`),
   test: (id) => apiClient.post(`/v1/alert-channels/${id}/test`),
+  getTelegramBotInfo: () => apiClient.get('/v1/alert-channels/bot-info/telegram'),
+  detectTelegramChat: () => apiClient.post('/v1/alert-channels/detect-telegram-chat'),
 };

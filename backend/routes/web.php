@@ -13,6 +13,9 @@ Route::get('/auth/google/callback', [\App\Http\Controllers\Api\Auth\GoogleAuthCo
 Route::get('/api/v1/auth/google/redirect', [\App\Http\Controllers\Api\Auth\GoogleAuthController::class, 'redirect']);
 Route::get('/api/v1/auth/google/callback', [\App\Http\Controllers\Api\Auth\GoogleAuthController::class, 'callback']);
 
+Route::get('/manifest.webmanifest', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'manifest']);
+Route::get('/manifest.json', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'manifest']);
+
 // Fallback route: Serves the React SPA if built and copied into the public/ directory.
 // If index.html doesn't exist, it falls back to a JSON API status message.
 Route::fallback(function () {

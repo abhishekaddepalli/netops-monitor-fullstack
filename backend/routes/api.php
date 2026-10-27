@@ -126,6 +126,8 @@ Route::prefix('v1')->middleware(['api_key_or_sanctum'])->group(function () {
         Route::delete('/status-pages/{statusPage}', [StatusPageController::class, 'destroy'])->middleware('org.role:org_admin');
 
         // ── Alert Channels ─────────────────────────────────────────
+        Route::get('/alert-channels/bot-info/telegram', [AlertChannelController::class, 'getTelegramBotInfo']);
+        Route::post('/alert-channels/detect-telegram-chat', [AlertChannelController::class, 'detectTelegramChat']);
         Route::get('/alert-channels', [AlertChannelController::class, 'index']);
         Route::post('/alert-channels', [AlertChannelController::class, 'store'])->middleware('org.role:org_admin');
         Route::patch('/alert-channels/{alertChannel}', [AlertChannelController::class, 'update'])->middleware('org.role:org_admin');
@@ -217,17 +219,37 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'org.role:super_admin'])-
     Route::post('/notification-templates/reset-default', [\App\Http\Controllers\Api\Admin\NotificationTemplateController::class, 'resetDefault']);
     Route::apiResource('notification-templates', \App\Http\Controllers\Api\Admin\NotificationTemplateController::class)->only(['index', 'show', 'update']);
     
-    // New simplified Radius endpoints
-    Route::post('/radius/provision', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'provision']);
-    Route::post('/radius/suspend', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'suspend']);
-
-    Route::middleware([\App\Http\Middleware\RadiusAuthMiddleware::class])->prefix('radius')->group(function () {
-        Route::post('/organizations', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'createOrganization']);
-        Route::post('/organizations/{organization}/suspend', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'suspendOrganization']);
-        Route::post('/organizations/{organization}/unsuspend', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'unsuspendOrganization']);
-        Route::post('/organizations/{organization}/expire', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'expireOrganization']);
-        Route::post('/organizations/{organization}/unexpire', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'unexpireOrganization']);
-        Route::delete('/organizations/{organization}', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'destroyOrganization']);
-        Route::post('/subscriptions', [\App\Http\Controllers\Api\Admin\RadiusController::class, 'subscribe']);
-    });
+    // Radius Integration configuration for Super Admin
+    Route::get('/radius/settings', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'getSettings']);
+    Route::post('/radius/settings', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'updateSettings']);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Radius ISP API Routes — External Add-on Integration
+|--------------------------------------------------------------------------
+| Authenticated via Radius API Key (Bearer token, X-Radius-Key, or X-API-Key).
+*/
+Route::prefix('v1/radius')->middleware([\App\Http\Middleware\RadiusAuthMiddleware::class])->group(function () {
+    Route::post('/provision', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'provision']);
+    Route::post('/organizations', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'provision']);
+    Route::post('/organizations/{id}/suspend', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'suspend']);
+    Route::post('/suspend', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'suspend']);
+    Route::post('/organizations/{id}/unsuspend', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'unsuspend']);
+    Route::post('/unsuspend', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'unsuspend']);
+    Route::post('/organizations/{id}/expire', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'expire']);
+    Route::post('/expire', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'expire']);
+    Route::post('/organizations/{id}/unexpire', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'unexpire']);
+    Route::post('/unexpire', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'unexpire']);
+    Route::match(['put', 'patch'], '/organizations/{id}', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'updateOrganization']);
+    Route::post('/organizations/{id}/change-plan', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'changePlan']);
+    Route::delete('/organizations/{id}', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'destroyOrganization']);
+    Route::get('/organizations/{id}/status', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'getStatus']);
+    Route::get('/organizations', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'listOrganizations']);
+    Route::get('/plans', [\App\Http\Controllers\Api\RadiusIntegrationController::class, 'listPlans']);
+});
+
+// Dynamic PWA Manifest routes
+Route::get('/manifest.webmanifest', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'manifest']);
+Route::get('/manifest.json', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'manifest']);
+Route::get('/v1/manifest', [\App\Http\Controllers\Api\Admin\SettingsController::class, 'manifest']);

@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AlertChannel;
+use App\Models\GlobalSetting;
 use App\Models\Incident;
 use App\Models\Monitor;
 use App\Services\Alerts\AlertSenderFactory;
+use GuzzleHttp\Client;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -85,6 +87,95 @@ class AlertChannelController extends Controller
             return response()->json(['message' => 'Test alert sent successfully.']);
         } catch (Throwable $e) {
             return response()->json(['message' => 'Test alert failed: '.$e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Retrieve public info about the platform's Telegram Bot (e.g. username).
+     */
+    public function getTelegramBotInfo(): JsonResponse
+    {
+        $botToken = GlobalSetting::getValue('telegram_bot_token') ?: config('services.telegram.bot_token');
+
+        if (! $botToken) {
+            return response()->json([
+                'configured' => false,
+                'bot_username' => null,
+                'message' => 'Telegram Bot not yet configured by platform Super Admin.',
+            ]);
+        }
+
+        try {
+            $client = new Client(['timeout' => 5]);
+            $res = $client->get("https://api.telegram.org/bot{$botToken}/getMe", ['http_errors' => false]);
+            $data = json_decode((string) $res->getBody(), true);
+            $botUsername = $data['result']['username'] ?? null;
+
+            return response()->json([
+                'configured' => true,
+                'bot_username' => $botUsername,
+            ]);
+        } catch (\Throwable) {
+            return response()->json([
+                'configured' => true,
+                'bot_username' => null,
+            ]);
+        }
+    }
+
+    /**
+     * Auto-detect chat ID for an organization user from recent Telegram updates.
+     */
+    public function detectTelegramChat(): JsonResponse
+    {
+        $botToken = GlobalSetting::getValue('telegram_bot_token') ?: config('services.telegram.bot_token');
+
+        if (! $botToken) {
+            return response()->json(['message' => 'Platform Telegram Bot Token is not configured by Super Admin.'], 422);
+        }
+
+        try {
+            $client = new Client(['timeout' => 8]);
+
+            $meRes = $client->get("https://api.telegram.org/bot{$botToken}/getMe", ['http_errors' => false]);
+            $meData = json_decode((string) $meRes->getBody(), true);
+            $botUsername = $meData['result']['username'] ?? 'the_bot';
+
+            $upRes = $client->get("https://api.telegram.org/bot{$botToken}/getUpdates", ['http_errors' => false]);
+            $upData = json_decode((string) $upRes->getBody(), true);
+            $updates = $upData['result'] ?? [];
+
+            if (empty($updates)) {
+                return response()->json([
+                    'ok' => false,
+                    'bot_username' => $botUsername,
+                    'message' => "No recent messages found with @{$botUsername}. Open Telegram, search @{$botUsername}, click START or send /start, then click 'Auto-Detect' again.",
+                ]);
+            }
+
+            $latest = end($updates);
+            $chat = $latest['message']['chat'] ?? $latest['channel_post']['chat'] ?? $latest['my_chat_member']['chat'] ?? null;
+
+            if (! $chat || ! isset($chat['id'])) {
+                return response()->json([
+                    'ok' => false,
+                    'bot_username' => $botUsername,
+                    'message' => "Could not determine Chat ID from updates. Send a new message to @{$botUsername} and try again.",
+                ]);
+            }
+
+            $chatId = (string) $chat['id'];
+            $name = $chat['title'] ?? trim(($chat['first_name'] ?? '') . ' ' . ($chat['last_name'] ?? '')) ?: ($chat['username'] ?? 'User');
+
+            return response()->json([
+                'ok' => true,
+                'chat_id' => $chatId,
+                'chat_name' => $name,
+                'bot_username' => $botUsername,
+                'message' => "Detected active chat with '{$name}' (Chat ID: {$chatId})!",
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Telegram connection failed: ' . $e->getMessage()], 422);
         }
     }
 

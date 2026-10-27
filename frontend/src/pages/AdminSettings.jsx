@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
-import { Settings, Image as ImageIcon, Shield, Key, Copy, Check, Eye, EyeOff, Globe, CreditCard, Lock, HelpCircle, ExternalLink } from 'lucide-react';
+import { Settings, Image as ImageIcon, Shield, Key, Copy, Check, Eye, EyeOff, Globe, CreditCard, Lock, HelpCircle, ExternalLink, Smartphone, Sparkles, Upload, SmartphoneNfc } from 'lucide-react';
 import { apiErrorMessage, apiClient } from '../api/client';
 import { useToast } from '../context/ToastContext';
 
 export default function AdminSettings() {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('brand'); // 'brand', 'google', 'payments', 'security', 'profile'
+  const [activeTab, setActiveTab] = useState('brand'); // 'brand', 'google', 'payments', 'security', 'pwa', 'profile'
   
   const [settings, setSettings] = useState({
     app_name: '',
@@ -35,10 +35,23 @@ export default function AdminSettings() {
     // Security
     enforce_2fa: false,
     log_retention_days: 90,
+    // PWA & Mobile App
+    pwa_name: '',
+    pwa_short_name: '',
+    pwa_description: '',
+    pwa_theme_color: '#2E4FA3',
+    pwa_background_color: '#0F172A',
+    pwa_display: 'standalone',
+    pwa_orientation: 'any',
+    pwa_install_prompt_enabled: true,
+    pwa_icon_192: '',
+    pwa_icon_512: '',
   });
 
   const [logoFile, setLogoFile] = useState(null);
   const [faviconFile, setFaviconFile] = useState(null);
+  const [icon192File, setIcon192File] = useState(null);
+  const [icon512File, setIcon512File] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [showRzpSecret, setShowRzpSecret] = useState(false);
@@ -46,6 +59,8 @@ export default function AdminSettings() {
 
   const logoInputRef = useRef();
   const faviconInputRef = useRef();
+  const icon192InputRef = useRef();
+  const icon512InputRef = useRef();
 
   useEffect(() => {
     apiClient.get('/v1/admin/settings')
@@ -102,6 +117,28 @@ export default function AdminSettings() {
         fd.append('app_favicon_url', settings.app_favicon || '');
       }
 
+      // PWA & Mobile App
+      fd.append('pwa_name', settings.pwa_name || settings.app_name || '');
+      fd.append('pwa_short_name', settings.pwa_short_name || '');
+      fd.append('pwa_description', settings.pwa_description || '');
+      fd.append('pwa_theme_color', settings.pwa_theme_color || settings.primary_color || '#2E4FA3');
+      fd.append('pwa_background_color', settings.pwa_background_color || '#0F172A');
+      fd.append('pwa_display', settings.pwa_display || 'standalone');
+      fd.append('pwa_orientation', settings.pwa_orientation || 'any');
+      fd.append('pwa_install_prompt_enabled', settings.pwa_install_prompt_enabled ? '1' : '0');
+
+      if (icon192File) {
+        fd.append('pwa_icon_192', icon192File);
+      } else if (settings.pwa_icon_192) {
+        fd.append('pwa_icon_192_url', settings.pwa_icon_192);
+      }
+
+      if (icon512File) {
+        fd.append('pwa_icon_512', icon512File);
+      } else if (settings.pwa_icon_512) {
+        fd.append('pwa_icon_512_url', settings.pwa_icon_512);
+      }
+
       fd.append('_method', 'PATCH');
 
       const { data } = await apiClient.post('/v1/admin/settings', fd);
@@ -109,8 +146,12 @@ export default function AdminSettings() {
       setSettings((s) => ({ ...s, ...data }));
       setLogoFile(null);
       setFaviconFile(null);
+      setIcon192File(null);
+      setIcon512File(null);
       if (logoInputRef.current) logoInputRef.current.value = '';
       if (faviconInputRef.current) faviconInputRef.current.value = '';
+      if (icon192InputRef.current) icon192InputRef.current.value = '';
+      if (icon512InputRef.current) icon512InputRef.current.value = '';
 
       toast.success('Platform settings updated successfully.');
     } catch (error) {
@@ -175,6 +216,13 @@ export default function AdminSettings() {
           style={{ display: 'flex', alignItems: 'center', gap: 8 }}
         >
           <Shield size={15} /> Security & 2FA Policies
+        </button>
+        <button 
+          className={`btn btn-sm ${activeTab === 'pwa' ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={() => setActiveTab('pwa')}
+          style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+        >
+          <Smartphone size={15} /> PWA & Mobile App
         </button>
         <button 
           className={`btn btn-sm ${activeTab === 'profile' ? 'btn-primary' : 'btn-ghost'}`}
@@ -672,6 +720,325 @@ export default function AdminSettings() {
                   </select>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ──────────────── TAB: PWA & Mobile App ──────────────── */}
+      {activeTab === 'pwa' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 960 }}>
+          <div className="panel">
+            <div className="panel-head">
+              <div>
+                <div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Smartphone color="#38bdf8" /> Progressive Web App (PWA) Customization
+                </div>
+                <div className="panel-sub">
+                  Configure installable mobile & desktop app branding, launcher icons, splash screen, and display behavior
+                </div>
+              </div>
+            </div>
+            <div className="panel-body">
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(280px, 1fr)', gap: 32, alignItems: 'start' }}>
+                <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Enable Install Banner */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--navy-900)', borderRadius: 8, border: '1px solid var(--navy-700)' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, color: 'var(--white-90)' }}>Enable PWA Installation</div>
+                      <div style={{ fontSize: 12, color: 'var(--white-60)' }}>
+                        Allows mobile browsers (Chrome, Safari, Edge) to show the "Install App" prompt.
+                      </div>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      style={{ width: 18, height: 18, cursor: 'pointer' }}
+                      checked={settings.pwa_install_prompt_enabled}
+                      onChange={(e) => setSettings({ ...settings, pwa_install_prompt_enabled: e.target.checked })}
+                    />
+                  </div>
+
+                  {/* App Full & Short Name */}
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Application Full Name</label>
+                      <input 
+                        className="form-input" 
+                        value={settings.pwa_name || settings.app_name || ''} 
+                        onChange={(e) => setSettings({ ...settings, pwa_name: e.target.value })}
+                        placeholder="e.g. NetOps Monitor" 
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--white-50)' }}>Shown on app launch & splash screen</span>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Short Name (Home Screen Label)</label>
+                      <input 
+                        className="form-input" 
+                        value={settings.pwa_short_name || ''} 
+                        onChange={(e) => setSettings({ ...settings, pwa_short_name: e.target.value })}
+                        placeholder="e.g. NetOps" 
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--white-50)' }}>Max 12 chars for launcher icon label</span>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div className="form-group">
+                    <label className="form-label">Application Description</label>
+                    <textarea 
+                      className="form-input" 
+                      rows={2}
+                      value={settings.pwa_description || ''} 
+                      onChange={(e) => setSettings({ ...settings, pwa_description: e.target.value })}
+                      placeholder="High-performance network operations and real-time uptime monitoring platform." 
+                    />
+                  </div>
+
+                  {/* Colors */}
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Theme Color (Status Bar)</label>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input 
+                          type="color" 
+                          value={settings.pwa_theme_color || '#2E4FA3'} 
+                          onChange={(e) => setSettings({ ...settings, pwa_theme_color: e.target.value })}
+                          style={{ width: 38, height: 38, borderRadius: 6, border: 'none', cursor: 'pointer', background: 'transparent' }}
+                        />
+                        <input 
+                          className="form-input" 
+                          value={settings.pwa_theme_color || '#2E4FA3'} 
+                          onChange={(e) => setSettings({ ...settings, pwa_theme_color: e.target.value })}
+                          placeholder="#2E4FA3" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Splash Background Color</label>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input 
+                          type="color" 
+                          value={settings.pwa_background_color || '#0F172A'} 
+                          onChange={(e) => setSettings({ ...settings, pwa_background_color: e.target.value })}
+                          style={{ width: 38, height: 38, borderRadius: 6, border: 'none', cursor: 'pointer', background: 'transparent' }}
+                        />
+                        <input 
+                          className="form-input" 
+                          value={settings.pwa_background_color || '#0F172A'} 
+                          onChange={(e) => setSettings({ ...settings, pwa_background_color: e.target.value })}
+                          placeholder="#0F172A" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Display & Orientation */}
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Display Mode</label>
+                      <select 
+                        className="form-select"
+                        value={settings.pwa_display || 'standalone'}
+                        onChange={(e) => setSettings({ ...settings, pwa_display: e.target.value })}
+                      >
+                        <option value="standalone">Standalone (Native App Feel - Recommended)</option>
+                        <option value="fullscreen">Fullscreen (Immersive Game/Kiosk)</option>
+                        <option value="minimal-ui">Minimal UI (Simplified Controls)</option>
+                        <option value="browser">Browser (Standard Tab)</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Orientation</label>
+                      <select 
+                        className="form-select"
+                        value={settings.pwa_orientation || 'any'}
+                        onChange={(e) => setSettings({ ...settings, pwa_orientation: e.target.value })}
+                      >
+                        <option value="any">Any (Auto-rotate)</option>
+                        <option value="portrait">Portrait Only</option>
+                        <option value="landscape">Landscape Only</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* App Icons */}
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">PWA Icon (192x192 PNG)</label>
+                      <input 
+                        type="file" 
+                        ref={icon192InputRef} 
+                        className="form-input" 
+                        accept="image/png,image/webp" 
+                        onChange={(e) => setIcon192File(e.target.files[0])} 
+                      />
+                      {settings.pwa_icon_192 && (
+                        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <img src={settings.pwa_icon_192} alt="192 icon" style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--navy-700)' }} />
+                          <span style={{ fontSize: 11, color: 'var(--white-60)' }}>Current 192px icon</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">PWA Splash Icon (512x512 PNG)</label>
+                      <input 
+                        type="file" 
+                        ref={icon512InputRef} 
+                        className="form-input" 
+                        accept="image/png,image/webp" 
+                        onChange={(e) => setIcon512File(e.target.files[0])} 
+                      />
+                      {settings.pwa_icon_512 && (
+                        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <img src={settings.pwa_icon_512} alt="512 icon" style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--navy-700)' }} />
+                          <span style={{ fontSize: 11, color: 'var(--white-60)' }}>Current 512px icon</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                    <a 
+                      href="/manifest.webmanifest" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="btn btn-ghost btn-sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <ExternalLink size={14} /> View Dynamic Web Manifest
+                    </a>
+                    <button className="btn btn-primary" type="submit" disabled={saving}>
+                      <Settings size={15} /> {saving ? 'Saving...' : 'Save PWA Settings'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* ── Mobile Phone Live Mockup Preview ── */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--white-70)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <SmartphoneNfc size={14} color="#38bdf8" /> Live Mobile Phone Mockup
+                  </div>
+                  <div style={{ 
+                    width: 270, 
+                    height: 520, 
+                    borderRadius: 36, 
+                    border: '8px solid #1e293b', 
+                    background: settings.pwa_background_color || '#0F172A', 
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    {/* Speaker notch */}
+                    <div style={{ 
+                      width: 90, 
+                      height: 18, 
+                      background: '#1e293b', 
+                      borderRadius: '0 0 12px 12px', 
+                      margin: '0 auto',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}>
+                      <div style={{ width: 36, height: 3, borderRadius: 2, background: '#334155' }} />
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#0284c7' }} />
+                    </div>
+
+                    {/* Status bar */}
+                    <div style={{ 
+                      padding: '4px 16px', 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      fontSize: 11, 
+                      color: '#ffffff',
+                      background: settings.pwa_theme_color || '#2E4FA3'
+                    }}>
+                      <span>09:41</span>
+                      <span>5G 100%</span>
+                    </div>
+
+                    {/* App Bar */}
+                    <div style={{ 
+                      padding: '10px 14px', 
+                      background: settings.pwa_theme_color || '#2E4FA3',
+                      color: '#ffffff',
+                      fontWeight: 600,
+                      fontSize: 13,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      borderBottom: '1px solid rgba(255,255,255,0.1)'
+                    }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 4, background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {(settings.pwa_icon_192 || settings.app_favicon || settings.app_logo) ? (
+                          <img src={settings.pwa_icon_192 || settings.app_favicon || settings.app_logo} alt="App" style={{ width: 18, height: 18, objectFit: 'contain' }} />
+                        ) : (
+                          <span style={{ fontSize: 11, fontWeight: 'bold', color: '#2E4FA3' }}>N</span>
+                        )}
+                      </div>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {settings.pwa_name || settings.app_name || 'NetOps Monitor'}
+                      </span>
+                    </div>
+
+                    {/* Mockup screen content */}
+                    <div style={{ flex: 1, padding: 14, display: 'flex', flexDirection: 'column', gap: 10, background: '#090e17' }}>
+                      <div style={{ background: '#111827', borderRadius: 8, padding: 10, border: '1px solid #1f2937' }}>
+                        <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase' }}>System Health</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#10b981', marginTop: 2 }}>99.98% All Systems Up</div>
+                      </div>
+
+                      <div style={{ background: '#111827', borderRadius: 8, padding: 10, border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#e5e7eb' }}>
+                          <span>Core Router #1</span>
+                          <span style={{ color: '#10b981', fontWeight: 600 }}>12ms</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#e5e7eb' }}>
+                          <span>BGP Gateway</span>
+                          <span style={{ color: '#10b981', fontWeight: 600 }}>18ms</span>
+                        </div>
+                      </div>
+
+                      {/* Home Screen Icon Card preview */}
+                      <div style={{ marginTop: 'auto', background: 'rgba(56, 189, 248, 0.08)', borderRadius: 10, border: '1px dashed rgba(56, 189, 248, 0.3)', padding: 10, textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: '#38bdf8', marginBottom: 6 }}>Home Screen Launcher Icon</div>
+                        <div style={{ 
+                          width: 44, 
+                          height: 44, 
+                          borderRadius: 10, 
+                          background: settings.pwa_theme_color || '#2E4FA3', 
+                          margin: '0 auto 4px auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                          overflow: 'hidden'
+                        }}>
+                          {(settings.pwa_icon_192 || settings.app_favicon || settings.app_logo) ? (
+                            <img src={settings.pwa_icon_192 || settings.app_favicon || settings.app_logo} alt="PWA Icon" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+                          ) : (
+                            <span style={{ color: '#ffffff', fontWeight: 800, fontSize: 18 }}>N</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#f3f4f6' }}>
+                          {settings.pwa_short_name || 'NetOps'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom home bar */}
+                    <div style={{ padding: '6px 0', background: '#090e17', display: 'flex', justifyContent: 'center' }}>
+                      <div style={{ width: 70, height: 4, borderRadius: 2, background: '#475569' }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
