@@ -55,6 +55,12 @@ class AuthController extends Controller
             'joined_at' => now(),
         ]);
 
+        try {
+            \App\Services\MailService::sendWelcome($user, $organization);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Registration welcome email could not be sent: " . $e->getMessage());
+        }
+
         $token = $user->createToken('default')->plainTextToken;
 
         return response()->json([

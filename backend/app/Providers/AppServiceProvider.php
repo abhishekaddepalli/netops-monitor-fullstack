@@ -37,23 +37,7 @@ class AppServiceProvider extends ServiceProvider
 
     private function loadSmtpConfig(): void
     {
-        try {
-            if (\Illuminate\Support\Facades\Schema::hasTable('global_settings')) {
-                $host = GlobalSetting::getValue('smtp_host');
-                if ($host) {
-                    Config::set('mail.mailers.smtp.host', $host);
-                    Config::set('mail.mailers.smtp.port', GlobalSetting::getValue('smtp_port', 587));
-                    Config::set('mail.mailers.smtp.username', GlobalSetting::getValue('smtp_username'));
-                    Config::set('mail.mailers.smtp.password', GlobalSetting::getValue('smtp_password'));
-                    Config::set('mail.mailers.smtp.encryption', GlobalSetting::getValue('smtp_encryption', 'tls'));
-                    Config::set('mail.from.address', GlobalSetting::getValue('smtp_from_address'));
-                    Config::set('mail.from.name', 'NetOps Monitor');
-                    Mail::purge('smtp');
-                }
-            }
-        } catch (\Throwable $e) {
-            // Ignore DB errors during setup/migration
-        }
+        \App\Services\MailService::configureSmtp();
     }
 
     private function loadBroadcastConfig(): void

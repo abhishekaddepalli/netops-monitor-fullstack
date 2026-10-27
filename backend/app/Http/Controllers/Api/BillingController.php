@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\Invoice;
+use App\Models\GlobalSetting;
+use App\Services\MailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class BillingController extends Controller
@@ -121,28 +124,33 @@ class BillingController extends Controller
             'paid_at' => null,
         ]);
 
+        try {
+            MailService::sendInvoice($invoice);
+        } catch (\Throwable $e) {
+            Log::warning("User invoice confirmation email failed: " . $e->getMessage());
+        }
+
         if ($request->payment_method === 'upi') {
             try {
-                $adminEmail = config('mail.from.address');
+                $adminEmail = GlobalSetting::getValue('smtp_from_address') ?: config('mail.from.address');
                 if ($adminEmail) {
-                    $html = view('emails.notification', [
-                        'appName' => $settings['app_name'] ?? 'NetOps Monitor',
-                        'primaryColor' => $settings['primary_color'] ?? '#2E4FA3',
-                        'title' => 'New UPI Payment Requires Approval',
-                        'messageText' => "Organization '{$organization->name}' has submitted a new UPI payment that requires your approval.",
-                        'details' => [
+                    MailService::sendNotification(
+                        to: $adminEmail,
+                        title: 'Action Required: New UPI Payment Pending Approval',
+                        messageText: "Organization '{$organization->name}' has submitted a new manual UPI payment for Invoice #{$invoice->invoice_number} requiring verification.",
+                        details: [
                             'Invoice Number' => $invoice->invoice_number,
-                            'Amount' => 'INR ' . $amount,
-                            'UTR Number' => $request->utr_number,
+                            'Amount' => 'INR ' . number_format((float) $amount, 2),
+                            'UTR / Ref Number' => $request->utr_number,
                             'Organization' => $organization->name
                         ],
-                    ])->render();
-                    \Illuminate\Support\Facades\Mail::html($html, function ($msg) use ($adminEmail, $settings) {
-                        $appName = $settings['app_name'] ?? 'NetOps Monitor';
-                        $msg->to($adminEmail)->subject("{$appName} - Action Required: UPI Payment Pending");
-                    });
+                        actionUrl: config('app.url') . '/admin/invoices',
+                        actionText: 'Review Invoice in Admin'
+                    );
                 }
-            } catch (\Exception $e) {}
+            } catch (\Throwable $e) {
+                Log::warning("Admin UPI alert email failed: " . $e->getMessage());
+            }
         }
 
         return response()->json([
@@ -202,11 +210,20 @@ class BillingController extends Controller
             ]);
         }
 
-        Invoice::where('subscription_id', $subscription->id)->update([
-            'status' => 'paid',
-            'paid_at' => now(),
-            'provider_invoice_id' => $request->razorpay_payment_id
-        ]);
+        $inv = Invoice::where('subscription_id', $subscription->id)->first();
+        if ($inv) {
+            $inv->update([
+                'status' => 'paid',
+                'paid_at' => now(),
+                'provider_invoice_id' => $request->razorpay_payment_id
+            ]);
+
+            try {
+                MailService::sendInvoice($inv);
+            } catch (\Throwable $e) {
+                Log::warning("Razorpay paid invoice email failed: " . $e->getMessage());
+            }
+        }
 
         return response()->json(['message' => 'Payment successful! Subscription activated.']);
     }

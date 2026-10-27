@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
+use App\Services\MailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class InvoiceController extends Controller
 {
@@ -87,30 +89,13 @@ class InvoiceController extends Controller
         }
 
         try {
-            if ($invoice->organization && $invoice->organization->billing_email) {
-                $settings = json_decode(\Illuminate\Support\Facades\Storage::get('global_settings.json'), true) ?? [];
-                $html = view('emails.notification', [
-                    'appName' => $settings['app_name'] ?? 'NetOps Monitor',
-                    'primaryColor' => $settings['primary_color'] ?? '#2E4FA3',
-                    'title' => 'Subscription Activated 🎉',
-                    'messageText' => "Great news! Your recent payment for Invoice #{$invoice->invoice_number} has been verified and approved.\n\nYour organization's subscription plan is now fully active.",
-                    'details' => [
-                        'Invoice Number' => $invoice->invoice_number,
-                        'Amount' => 'INR ' . $invoice->amount,
-                        'Plan' => $invoice->subscription->plan->name ?? 'Premium Plan',
-                        'Status' => 'Active'
-                    ]
-                ])->render();
-
-                \Illuminate\Support\Facades\Mail::html($html, function ($msg) use ($invoice, $settings) {
-                    $appName = $settings['app_name'] ?? 'NetOps Monitor';
-                    $msg->to($invoice->organization->billing_email)->subject("{$appName} - Subscription Activated");
-                });
-            }
-        } catch (\Exception $e) {}
+            MailService::sendInvoice($invoice);
+        } catch (\Throwable $e) {
+            Log::warning("Invoice approval email could not be sent: " . $e->getMessage());
+        }
 
         return response()->json([
-            'message' => 'Invoice approved successfully.',
+            'message' => 'Invoice approved successfully and confirmation email sent.',
             'invoice' => $invoice,
         ]);
     }
@@ -132,30 +117,42 @@ class InvoiceController extends Controller
         }
 
         try {
-            if ($invoice->organization && $invoice->organization->billing_email) {
-                $settings = json_decode(\Illuminate\Support\Facades\Storage::get('global_settings.json'), true) ?? [];
-                $html = view('emails.notification', [
-                    'appName' => $settings['app_name'] ?? 'NetOps Monitor',
-                    'primaryColor' => '#e11d48',
-                    'title' => 'Payment Denied',
-                    'messageText' => "We could not verify your recent payment for Invoice #{$invoice->invoice_number}.\n\nYour subscription has been canceled. Please contact support if you believe this is an error, and ensure your UTR/Transaction ID is correct.",
-                    'details' => [
+            $org = $invoice->organization ?? \App\Models\Organization::find($invoice->organization_id);
+            $to = $org?->billing_email ?: $org?->users()->first()?->email;
+            if ($to) {
+                MailService::sendNotification(
+                    to: $to,
+                    title: "Payment Verification Notice - Invoice #{$invoice->invoice_number}",
+                    messageText: "We could not verify your recent payment for Invoice #{$invoice->invoice_number}.\n\nYour subscription has been canceled. Please contact support if you believe this is an error, and ensure your UTR/Transaction ID is correct.",
+                    details: [
                         'Invoice Number' => $invoice->invoice_number,
-                        'Amount' => 'INR ' . $invoice->amount,
+                        'Amount' => 'INR ' . number_format((float) $invoice->amount, 2),
                         'Status' => 'Voided'
-                    ]
-                ])->render();
-
-                \Illuminate\Support\Facades\Mail::html($html, function ($msg) use ($invoice, $settings) {
-                    $appName = $settings['app_name'] ?? 'NetOps Monitor';
-                    $msg->to($invoice->organization->billing_email)->subject("{$appName} - Payment Denied");
-                });
+                    ],
+                    actionUrl: config('app.url') . '/billing',
+                    actionText: 'View Invoices'
+                );
             }
-        } catch (\Exception $e) {}
+        } catch (\Throwable $e) {
+            Log::warning("Invoice denial email could not be sent: " . $e->getMessage());
+        }
 
         return response()->json([
             'message' => 'Invoice denied successfully.',
             'invoice' => $invoice,
         ]);
+    }
+
+    public function sendEmail(Request $request, $id): JsonResponse
+    {
+        $invoice = Invoice::with(['subscription.plan', 'organization'])->findOrFail($id);
+        $customEmail = $request->input('email');
+
+        try {
+            MailService::sendInvoice($invoice, $customEmail);
+            return response()->json(['message' => 'Invoice email dispatched successfully.']);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Failed to send invoice email: ' . $e->getMessage()], 422);
+        }
     }
 }

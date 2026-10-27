@@ -52,12 +52,11 @@ export const adminApi = {
   upsertNotificationTemplate: (data) => apiClient.post('/v1/admin/notification-templates/upsert', data),
   resetNotificationTemplateDefault: (channel_type, event_type) => apiClient.post('/v1/admin/notification-templates/reset-default', { channel_type, event_type }),
 
-  // Billing & Logs
+  // Invoices & Logs
   listInvoices: (params) => apiClient.get('/v1/admin/invoices', { params }),
   approveInvoice: (id) => apiClient.post(`/v1/admin/invoices/${id}/approve`),
   denyInvoice: (id) => apiClient.post(`/v1/admin/invoices/${id}/deny`),
-  approveInvoice: (id) => apiClient.post(`/v1/admin/invoices/${id}/approve`),
-  denyInvoice: (id) => apiClient.post(`/v1/admin/invoices/${id}/deny`),
+  sendInvoiceEmail: (id, email) => apiClient.post(`/v1/admin/invoices/${id}/send-email`, { email }),
   listAuditLogs: (params) => apiClient.get('/v1/admin/logs', { params }),
   deleteAuditLogs: (params) => apiClient.delete('/v1/admin/logs', { params }),
   exportAuditLogs: async (params) => {

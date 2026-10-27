@@ -10,7 +10,7 @@ use GuzzleHttp\Exception\RequestException;
 use RuntimeException;
 
 /**
- * Sends WhatsApp alerts using configured Gateway (Wapblaster, Custom API, or Webhook).
+ * Sends WhatsApp alerts using configured Gateway (InfiniChat, Wapblaster, or Custom API).
  */
 class WhatsAppAlertSender implements AlertSenderInterface
 {
@@ -31,7 +31,7 @@ class WhatsAppAlertSender implements AlertSenderInterface
             ?? GlobalSetting::getValue('wapblaster_token');
 
         if (! $to) {
-            throw new RuntimeException('WhatsApp channel is missing destination phone number (e.g. +91XXXXXXXXXX).');
+            throw new RuntimeException('WhatsApp channel is missing destination phone number (e.g. 918121886213).');
         }
 
         if (! $endpointUrl) {
@@ -41,8 +41,8 @@ class WhatsAppAlertSender implements AlertSenderInterface
         $message = TemplateParser::parse('whatsapp', $incident, $event);
 
         $client = new Client([
-            'timeout' => 10,
-            'connect_timeout' => 5,
+            'timeout' => 12,
+            'connect_timeout' => 6,
         ]);
         
         $headers = [
@@ -51,35 +51,72 @@ class WhatsAppAlertSender implements AlertSenderInterface
         ];
 
         if ($authToken) {
+            // Support all common gateway auth header conventions
+            $headers['X-API-Key'] = $authToken;
+            $headers['x-api-key'] = $authToken;
             $headers['Authorization'] = str_starts_with($authToken, 'Bearer ') ? $authToken : "Bearer {$authToken}";
             $headers['api-key'] = $authToken;
+            $headers['token'] = $authToken;
         }
 
-        // Clean recipient number
-        $cleanTo = preg_replace('/[^0-9+]/', '', (string)$to);
+        // Format recipient number (strip non-digits, ensure country code for 10-digit Indian numbers)
+        $numericTo = preg_replace('/[^0-9]/', '', (string)$to);
+        if (strlen($numericTo) === 10) {
+            $numericTo = '91' . $numericTo;
+        }
 
         $payload = [
-            'to' => $cleanTo,
-            'phone' => $cleanTo,
-            'number' => $cleanTo,
+            'to' => $numericTo,
+            'phone' => $numericTo,
+            'number' => $numericTo,
+            'recipient' => $numericTo,
+            'mobile' => $numericTo,
             'message' => $message,
             'text' => $message,
+            'type' => 'text',
+            'body' => $message,
         ];
 
-        try {
-            $response = $client->post($endpointUrl, [
-                'headers' => $headers,
-                'json' => $payload,
-                'http_errors' => false,
-            ]);
-
-            $status = $response->getStatusCode();
-            if ($status >= 300) {
-                $body = (string)$response->getBody();
-                throw new RuntimeException("WhatsApp Gateway returned HTTP {$status}: " . mb_substr($body, 0, 300));
-            }
-        } catch (RequestException $e) {
-            throw new RuntimeException('WhatsApp Gateway connection failed: ' . $e->getMessage());
+        // Candidate endpoints: URL as given, and normalized /messages if user provided base /api/v1
+        $candidates = [$endpointUrl];
+        $trimmed = rtrim($endpointUrl, '/');
+        if (str_ends_with($trimmed, '/api/v1')) {
+            $candidates = [$trimmed . '/messages', $trimmed . '/send', $trimmed];
         }
+
+        $lastError = null;
+
+        foreach ($candidates as $url) {
+            try {
+                $response = $client->post($url, [
+                    'headers' => $headers,
+                    'json' => $payload,
+                    'http_errors' => false,
+                ]);
+
+                $status = $response->getStatusCode();
+                $body = (string) $response->getBody();
+
+                // If success (2xx)
+                if ($status >= 200 && $status < 300) {
+                    return;
+                }
+
+                // If 404 and we have more candidate endpoints, try the next
+                if ($status === 404 && count($candidates) > 1) {
+                    $lastError = "HTTP {$status}: " . mb_substr($body, 0, 300);
+                    continue;
+                }
+
+                // Parse error details
+                $json = json_decode($body, true);
+                $msg = $json['message'] ?? $json['error'] ?? $body;
+                throw new RuntimeException("WhatsApp Gateway returned HTTP {$status}: " . (is_string($msg) ? $msg : json_encode($msg)));
+            } catch (RequestException $e) {
+                $lastError = $e->getMessage();
+            }
+        }
+
+        throw new RuntimeException('WhatsApp Gateway delivery failed: ' . ($lastError ?: 'Unknown error'));
     }
 }

@@ -4,7 +4,7 @@ import { useToast } from '../context/ToastContext';
 import Skeleton from '../components/ui/Skeleton';
 import EmptyState from '../components/ui/EmptyState';
 import Modal from '../components/ui/Modal';
-import { CreditCard, Eye, CheckCircle, XCircle, Printer, FileText, Download, ExternalLink, Calendar, Building, Hash } from 'lucide-react';
+import { CreditCard, Eye, CheckCircle, XCircle, Printer, FileText, Download, ExternalLink, Calendar, Building, Hash, Mail } from 'lucide-react';
 import { formatDateTime } from '../utils/format';
 
 export default function AdminInvoices() {
@@ -14,6 +14,7 @@ export default function AdminInvoices() {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [processingId, setProcessingId] = useState(null);
+  const [emailingId, setEmailingId] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -33,7 +34,7 @@ export default function AdminInvoices() {
     setProcessingId(id);
     try {
       await adminApi.approveInvoice(id);
-      toast.success('Invoice approved and subscription activated!');
+      toast.success('Invoice approved and subscription activated! Email sent.');
       if (selectedInvoice?.id === id) {
         setSelectedInvoice(null);
       }
@@ -62,6 +63,19 @@ export default function AdminInvoices() {
     }
   };
 
+  const handleSendEmail = async (id, customEmail = null) => {
+    setEmailingId(id);
+    try {
+      toast.info('Sending invoice email...');
+      const res = await adminApi.sendInvoiceEmail(id, customEmail);
+      toast.success(res.data?.message || 'Invoice email dispatched successfully!');
+    } catch (error) {
+      toast.error('Failed to send invoice email.');
+    } finally {
+      setEmailingId(null);
+    }
+  };
+
   useEffect(() => { load(); }, [load]);
 
   const getStorageUrl = (path) => {
@@ -77,7 +91,7 @@ export default function AdminInvoices() {
         <div>
           <div className="detail-title">Invoices & Payment Receipts</div>
           <div className="panel-sub" style={{ marginTop: 4 }}>
-            Review customer payments, verify manual UPI transfers, and manage organization billing
+            Review customer payments, verify manual UPI transfers, send invoice emails, and manage organization billing
           </div>
         </div>
       </div>
@@ -171,14 +185,24 @@ export default function AdminInvoices() {
                         {formatDateTime(inv.created_at)}
                       </td>
                       <td>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
                           <button 
                             className="btn btn-ghost btn-sm" 
                             onClick={() => setSelectedInvoice(inv)} 
                             title="View Invoice & Details"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                           >
-                            <Eye size={15} /> Details
+                            <Eye size={14} /> Details
+                          </button>
+
+                          <button 
+                            className="btn btn-ghost btn-sm" 
+                            onClick={() => handleSendEmail(inv.id)} 
+                            disabled={emailingId === inv.id}
+                            title="Email Invoice to Organization"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--primary-400)' }}
+                          >
+                            <Mail size={14} /> {emailingId === inv.id ? '…' : 'Email'}
                           </button>
 
                           {storageUrl && (
@@ -188,7 +212,7 @@ export default function AdminInvoices() {
                               rel="noreferrer" 
                               className="btn btn-ghost btn-sm" 
                               title="View Payment Screenshot"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--primary-400)' }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#38bdf8' }}
                             >
                               <ExternalLink size={14} /> Receipt
                             </a>
@@ -203,7 +227,7 @@ export default function AdminInvoices() {
                                 title="Approve Payment" 
                                 style={{ background: '#16a34a', borderColor: '#22c55e', color: '#fff' }}
                               >
-                                <CheckCircle size={15} /> Approve
+                                <CheckCircle size={14} /> Approve
                               </button>
                               <button 
                                 className="btn btn-ghost btn-sm" 
@@ -212,7 +236,7 @@ export default function AdminInvoices() {
                                 title="Deny Payment" 
                                 style={{ color: '#f87171' }}
                               >
-                                <XCircle size={15} /> Deny
+                                <XCircle size={14} /> Deny
                               </button>
                             </>
                           )}
@@ -234,15 +258,26 @@ export default function AdminInvoices() {
           onClose={() => setSelectedInvoice(null)} 
           maxWidth="680px"
           footer={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <button 
-                type="button" 
-                className="btn btn-ghost" 
-                onClick={() => window.print()}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <Printer size={15} /> Print / PDF
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button 
+                  type="button" 
+                  className="btn btn-ghost" 
+                  onClick={() => window.print()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Printer size={15} /> Print / PDF
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-ghost" 
+                  onClick={() => handleSendEmail(selectedInvoice.id)}
+                  disabled={emailingId === selectedInvoice.id}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--primary-400)' }}
+                >
+                  <Mail size={15} /> {emailingId === selectedInvoice.id ? 'Sending…' : 'Email Invoice'}
+                </button>
+              </div>
               
               <div style={{ display: 'flex', gap: 10 }}>
                 {selectedInvoice.status === 'open' && (

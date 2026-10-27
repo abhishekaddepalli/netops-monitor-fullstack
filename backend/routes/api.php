@@ -179,7 +179,6 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'org.role:super_admin'])-
 
     Route::apiResource('plans', \App\Http\Controllers\Api\Admin\PlanController::class)->except(['show']);
 
-
     Route::get('/monitoring-nodes', [MonitoringNodeController::class, 'index']);
     Route::post('/monitoring-nodes', [MonitoringNodeController::class, 'store']);
     Route::patch('/monitoring-nodes/{monitoring_node}', [MonitoringNodeController::class, 'update']);
@@ -200,12 +199,15 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'org.role:super_admin'])-
     Route::get('/invoices/{id}', [\App\Http\Controllers\Api\Admin\InvoiceController::class, 'show']);
     Route::post('/invoices/{id}/approve', [\App\Http\Controllers\Api\Admin\InvoiceController::class, 'approve']);
     Route::post('/invoices/{id}/deny', [\App\Http\Controllers\Api\Admin\InvoiceController::class, 'deny']);
+    Route::post('/invoices/{id}/send-email', [\App\Http\Controllers\Api\Admin\InvoiceController::class, 'sendEmail']);
     Route::get('/logs', [\App\Http\Controllers\Api\Admin\AuditLogController::class, 'index']);
     Route::delete('/logs', [\App\Http\Controllers\Api\Admin\AuditLogController::class, 'destroy']);
     Route::get('/logs/export', [\App\Http\Controllers\Api\Admin\AuditLogController::class, 'export']);
 
     Route::get('/integrations', [AdminIntegrationController::class, 'index']);
     Route::post('/integrations', [AdminIntegrationController::class, 'update']);
+    Route::post('/integrations/telegram/detect-chat', [AdminIntegrationController::class, 'detectTelegramChat']);
+    Route::post('/integrations/test-monthly-report', [AdminIntegrationController::class, 'testMonthlyReport']);
     Route::post('/integrations/test/{provider}', [AdminIntegrationController::class, 'test']);
     
     Route::apiResource('alert-channels', \App\Http\Controllers\Api\Admin\AlertChannelController::class);
